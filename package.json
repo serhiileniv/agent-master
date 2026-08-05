@@ -25,7 +25,8 @@
     "smoke:ws": "electron scripts/smoke/ws-smoke.cjs",
     "smoke:tabs": "electron scripts/smoke/tabs-smoke.cjs",
     "smoke:wspersist": "electron scripts/smoke/wspersist-smoke.cjs",
-    "smoke:agentfolder": "electron scripts/smoke/agentfolder-smoke.cjs"
+    "smoke:agentfolder": "electron scripts/smoke/agentfolder-smoke.cjs",
+    "smoke:envpath": "electron scripts/smoke/envpath-smoke.cjs"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

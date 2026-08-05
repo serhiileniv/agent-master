@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { registerIpc } from './ipc'
 import { installMacMenu } from './menu'
 import { migrateUserDataFromVectro } from './migrate-userdata'
-import { applyResolvedPath } from './env-path'
+import { primeResolvedPath } from './env-path'
 import type { PtyManager } from './pty-manager'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
@@ -251,7 +251,14 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
   // Before anything detects or spawns: recover the user's real PATH. A Finder or
   // Dock launch on macOS gets launchd's minimal PATH, which hides every agent CLI.
-  applyResolvedPath()
+  //
+  // Deliberately does NOT block. Recovering the real PATH means booting the
+  // user's whole rc chain, which is seconds on a loaded Mac — doing that here
+  // synchronously meant the window could not be created, let alone painted,
+  // until it finished. prime() applies what it can instantly and refines in the
+  // background; the shells:list / agents:list handlers await whenPathReady()
+  // before answering, which is the only place the full PATH is actually needed.
+  primeResolvedPath(join(app.getPath('userData'), 'env-path.json'))
   applyProductionCsp()
   ptyManager = registerIpc(() => win, {
     get: () => translucent,
