@@ -7,7 +7,7 @@ const fs = require('fs')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
 const TMP = os.tmpdir()
-const SHOT = join(os.tmpdir(), 'monad-shot.png')
+const SHOT = join(os.tmpdir(), 'spymaster-shot.png')
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({

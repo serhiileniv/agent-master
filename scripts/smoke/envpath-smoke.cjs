@@ -31,7 +31,7 @@ const { primeResolvedPath, resolvedPath } = require(join(__dirname, '..', '..', 
 
 app.disableHardwareAcceleration()
 
-const TMP = join(os.tmpdir(), 'monad-envpath-smoke-' + process.pid)
+const TMP = join(os.tmpdir(), 'spymaster-envpath-smoke-' + process.pid)
 fs.mkdirSync(TMP, { recursive: true })
 const NOTE = join(TMP, 'env-path.json')
 

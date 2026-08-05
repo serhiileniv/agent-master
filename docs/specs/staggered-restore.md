@@ -12,18 +12,18 @@
 
 ## Problem
 
-I keep several projects open at once — that is the whole reason I use Monad — so a normal session
+I keep several projects open at once — that is the whole reason I use Spy Master — so a normal session
 is three or four workspace tabs with a handful of agents in each. When I launch the app, every one
 of those agents starts in the same instant: every terminal in every tab, foreground and background
 alike, boots its shell and relaunches its agent CLI simultaneously. On my Mac the fans spin up
 within a second or two of clicking the Dock icon and the whole machine goes sluggish while it
 works through the pile. Once it settles, the same agents run in parallel perfectly happily and I
-barely notice them — so it is not that I am running too much, it is that Monad tries to start all
+barely notice them — so it is not that I am running too much, it is that Spy Master tries to start all
 of it at once.
 
 ## Behaviour
 
-1. When I launch Monad with several workspaces saved, every workspace and every agent in them still
+1. When I launch Spy Master with several workspaces saved, every workspace and every agent in them still
    comes back and ends up running — nothing is skipped, and I do not have to click anything to
    bring an agent back.
 2. When I launch, the agents in the workspace that opens in front start before the agents in

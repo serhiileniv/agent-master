@@ -1,5 +1,5 @@
-appId: com.serhiileniv.monad
-productName: Monad
+appId: com.serhiileniv.spymaster
+productName: Spy Master
 copyright: Copyright © Serhii Leniv
 
 directories:
@@ -33,7 +33,7 @@ npmRebuild: false
 publish:
   provider: github
   owner: Serhii-Leniv
-  repo: Monad
+  repo: spymaster
 
 # Ad-hoc sign the macOS app (no paid cert) so Apple Silicon doesn't flag it as
 # "damaged". Runs after packing, before the dmg is built.
@@ -59,7 +59,10 @@ mac:
   target:
     - dmg
   category: public.app-category.developer-tools
-  icon: build/icon.png
+  # The squircle-framed variant: macOS draws app icons inside Apple's icon grid,
+  # so the Mac build gets the inset tile and every other platform the full-bleed
+  # square. electron-builder converts this PNG to .icns itself.
+  icon: build/icon-mac.png
   # Required for notarization; harmless when signing is skipped.
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // Spawn args per platform. A macOS pane that isn't a LOGIN shell never sources
 // ~/.zprofile — where Homebrew's own install docs put `eval "$(brew shellenv)"`,
 // and where most nvm/conda setups live. The pane then has no /opt/homebrew/bin,
-// so `claude` is missing inside Monad while working fine in iTerm/Ghostty/
+// so `claude` is missing inside Spy Master while working fine in iTerm/Ghostty/
 // Terminal.app, all of which spawn login shells. That was the reported bug.
 
 // Pretend every candidate shell exists, so the POSIX branch is exercisable from

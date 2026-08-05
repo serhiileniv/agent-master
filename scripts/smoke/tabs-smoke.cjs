@@ -14,10 +14,10 @@ const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.
 
 app.disableHardwareAcceleration()
 // Isolate localStorage/userData so a real install's persisted tabs don't leak in.
-app.setPath('userData', join(os.tmpdir(), 'monad-tabs-ud-' + process.pid))
+app.setPath('userData', join(os.tmpdir(), 'spymaster-tabs-ud-' + process.pid))
 
-const A = join(os.tmpdir(), 'monad-tabs-A-' + process.pid)
-const WT_CONTAINER = join(os.tmpdir(), '.monad-worktrees')
+const A = join(os.tmpdir(), 'spymaster-tabs-A-' + process.pid)
+const WT_CONTAINER = join(os.tmpdir(), '.spymaster-worktrees')
 const errors = []
 
 function git(repo, args) {

@@ -1,4 +1,4 @@
-// Monad promo choreographer.
+// Spy Master promo choreographer.
 //
 // Runs the REAL app (real renderer + real main-process IPC, so worktrees, PTYs,
 // diffs and merges are genuine) in a fullscreen window, then drives it through a
@@ -6,7 +6,7 @@
 //
 // The agents are real terminal cards doing real git-worktree isolation; only the
 // *work they print* is scripted, so no Claude sessions and no API cost are needed.
-// Monad derives a card's working/idle/done state purely from terminal output, so
+// Spy Master derives a card's working/idle/done state purely from terminal output, so
 // a looping shell command produces the authentic animations.
 //
 // Handshake with the recorder (files under <demo>/signal):
@@ -19,7 +19,7 @@ const os = require('os')
 const { join } = require('path')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
-const DEMO_ROOT = join(os.tmpdir(), 'monad-demo')
+const DEMO_ROOT = join(os.tmpdir(), 'spymaster-demo')
 const SIGNAL = join(DEMO_ROOT, 'signal')
 const NAMES = ['storefront', 'payments-api', 'mobile-app']
 const PATHS = NAMES.map((n) => join(DEMO_ROOT, n))
@@ -42,7 +42,7 @@ const WIN_H = CAPTURE ? SZ_H : 1080
 // 1080p (the same value the fullscreen recorder path uses).
 const CAP_FONT = SZ_H >= 1000 ? 16 : SZ_H >= 860 ? 15 : 13
 /** Must match the -i title=... passed to ffmpeg in run-promo.ps1. */
-const CAPTURE_TITLE = 'MonadPromoCapture'
+const CAPTURE_TITLE = 'SpyMasterPromoCapture'
 
 const t0 = Date.now()
 const LOG_FILE = join(DEMO_ROOT, 'promo.log')

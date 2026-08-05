@@ -1,7 +1,7 @@
 {
-  "name": "monad",
+  "name": "spymaster",
   "version": "0.1.29",
-  "description": "Monad — a cross-platform stage for running terminals and AI agents in parallel",
+  "description": "Spy Master — a cross-platform stage for running terminals and AI agents in parallel",
   "main": "./out/main/index.js",
   "author": "Serhii Leniv",
   "license": "MIT",
@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "icons": "electron scripts/icon/render-icons.cjs",
     "package": "electron-vite build && electron-builder --publish never",
     "package:win": "electron-vite build && electron-builder --win --publish never",
     "package:mac": "electron-vite build && electron-builder --mac --publish never",

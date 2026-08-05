@@ -1,27 +1,27 @@
 ﻿/* ----------------------------------------------------------------------------
-   Monad type system — the app's own typefaces, self-hosted (no network at run).
-   • "Monad Sans"  → Inter, the workhorse UI face (controls, menus, body).
-   • "Monad Serif" → Lora, the brand face (wordmark, project name, headings) —
+   Spy Master type system — the app's own typefaces, self-hosted (no network at run).
+   • "Spy Master Sans"  → Inter, the workhorse UI face (controls, menus, body).
+   • "Spy Master Serif" → Lora, the brand face (wordmark, project name, headings) —
      a warm contemporary serif that gives the glassy chrome a calm, bookish
      counterpoint. True italics included for the tagline.
    All are variable woff2 (latin subset) so one file covers every weight.
 ---------------------------------------------------------------------------- */
 @font-face {
-  font-family: 'Monad Sans';
+  font-family: 'Spy Master Sans';
   src: url('./assets/fonts/inter-var.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Monad Serif';
+  font-family: 'Spy Master Serif';
   src: url('./assets/fonts/lora-var.woff2') format('woff2');
   font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Monad Serif';
+  font-family: 'Spy Master Serif';
   src: url('./assets/fonts/lora-var-italic.woff2') format('woff2');
   font-weight: 400 700;
   font-style: italic;
@@ -130,7 +130,7 @@
      Mono is for content that is genuinely DATA: terminal output, paths,
      branches, hashes. Never for labels, buttons or captions. */
   --font-ui: system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
-  --font-display: 'Monad Serif', Georgia, serif;
+  --font-display: 'Spy Master Serif', Georgia, serif;
   --font-serif: var(--font-display);
   --font-mono: 'Cascadia Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
 
@@ -4243,17 +4243,19 @@ body.has-wallpaper .vec-pane__term {
   border: 0;
 }
 
-/* The handwritten wordmark, painted as a mask so the gradient below shows
-   through it — that keeps the old title's drifting sheen and lets the colour
-   follow the theme instead of being baked into the asset. Ratio is the traced
-   SVG's viewBox (627x291); aspect-ratio holds the box before the mask loads,
-   so the hero never reflows. */
+/* The wordmark, painted as a mask so the ink below shows through it — that lets
+   the colour follow the theme instead of being baked into the asset. Set in
+   Lora, the display face the app already bundles (the previous asset was traced
+   outlines of the same face), and rendered by `npm run icons`. Ratio is the
+   asset's own pixel size; aspect-ratio holds the box before the mask loads, so
+   the hero never reflows. Wider than the old mark because the name is: two words
+   at the same cap height need more room to keep the letterforms readable. */
 .home__wordmark {
   margin: 4px 0 18px;
-  width: clamp(280px, 34vw, 440px);
-  aspect-ratio: 627 / 291;
-  -webkit-mask: url('./assets/wordmark.svg') center / contain no-repeat;
-  mask: url('./assets/wordmark.svg') center / contain no-repeat;
+  width: clamp(300px, 42vw, 520px);
+  aspect-ratio: 2165 / 448;
+  -webkit-mask: url('./assets/wordmark.png') center / contain no-repeat;
+  mask: url('./assets/wordmark.png') center / contain no-repeat;
   /* Flat ink. This was a gradient poured through the mask, with a travelling
      sheen, a drop-shadow glow tracing the letterforms, and a float loop — four
      decorative effects on one element. A wordmark is a signature; it does not

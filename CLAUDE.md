@@ -2,7 +2,7 @@
 
 Operating rules for AI agents working in this repository. Read this before touching anything.
 
-Monad is an Electron desktop app that runs multiple CLI coding agents side by side, each in its own
+Spy Master is an Electron desktop app that runs multiple CLI coding agents side by side, each in its own
 PTY and its own isolated git worktree. It ships as a signed installer to real users, so a regression
 here is not a broken test — it is a broken app on someone's machine, and in the worst case it is
 their lost work.
@@ -135,5 +135,5 @@ The user does not write or read code. That shapes how you should communicate:
 - Describe changes in terms of **observable app behaviour**, not implementation. "Renaming a
   workspace now survives restart" beats "persisted `name` in the workspace reducer."
 - When you need a decision, present the trade-off in user terms and give a recommendation.
-- To let the user see a change in the real app, use the `run-monad` skill.
+- To let the user see a change in the real app, use the `run-spymaster` skill.
 - Report failures honestly and immediately. A surfaced problem is cheap; a hidden one ships.

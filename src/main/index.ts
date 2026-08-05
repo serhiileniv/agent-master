@@ -3,7 +3,6 @@ import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { registerIpc } from './ipc'
 import { installMacMenu } from './menu'
-import { migrateUserDataFromVectro } from './migrate-userdata'
 import { primeResolvedPath } from './env-path'
 import type { PtyManager } from './pty-manager'
 
@@ -13,10 +12,10 @@ const isDev = !!process.env['ELECTRON_RENDERER_URL']
 // a quarantined .node, a flaky FS) must never take the whole app down silently.
 // Log and keep running; the worst case degrades to a single broken pane.
 process.on('uncaughtException', (err) => {
-  console.error('[monad] uncaughtException:', err)
+  console.error('[spymaster] uncaughtException:', err)
 })
 process.on('unhandledRejection', (reason) => {
-  console.error('[monad] unhandledRejection:', reason)
+  console.error('[spymaster] unhandledRejection:', reason)
 })
 
 // Optional profile override: `--user-data-dir=<abs path>` gives this instance
@@ -29,15 +28,14 @@ if (userDataArg) {
   if (dir) app.setPath('userData', dir)
 }
 
-// One-shot Vectro → Monad profile migration. Must precede the single-instance
-// lock and window creation (both touch the userData dir). Skipped for an
-// override profile — migrating the real Vectro data into a throwaway dir would
-// duplicate it.
-if (!userDataArg) migrateUserDataFromVectro()
-
-// App emblem (the Monad "M" disc, inset to 92% of the canvas). build/icon.png is
-// also what electron-builder uses to generate the packaged .icns / .ico icons.
+// App emblem. macOS takes the squircle-framed variant — that inset tile with its
+// contact shadow is what makes an icon look native in the Dock — and every other
+// platform takes the full-bleed square, because neither Windows nor Linux insets
+// or rounds an app icon. These same PNGs are what electron-builder converts into
+// the packaged .icns / .ico at build time. Regenerate with `npm run icons`.
 const iconPng = join(__dirname, '../../build/icon.png')
+const appIcon =
+  process.platform === 'darwin' ? join(__dirname, '../../build/icon-mac.png') : iconPng
 
 // --- Window size/position persistence (survives restarts) ---
 interface WinState {
@@ -136,7 +134,7 @@ function createWindow(): void {
     width: st.width,
     height: st.height,
     ...(onScreen(st) ? { x: st.x, y: st.y } : {}),
-    ...(process.platform !== 'darwin' && existsSync(iconPng) ? { icon: iconPng } : {}),
+    ...(process.platform !== 'darwin' && existsSync(appIcon) ? { icon: appIcon } : {}),
     minWidth: 720,
     minHeight: 480,
     // Frosted desktop behind the app, when the user opts into it. Costly: the
@@ -187,11 +185,11 @@ function createWindow(): void {
   const loadRenderer = (): void => {
     if (process.env['ELECTRON_RENDERER_URL']) {
       win?.loadURL(process.env['ELECTRON_RENDERER_URL']).catch((e) =>
-        console.error('[monad] loadURL failed:', e)
+        console.error('[spymaster] loadURL failed:', e)
       )
     } else {
       win?.loadFile(join(__dirname, '../renderer/index.html')).catch((e) =>
-        console.error('[monad] loadFile failed:', e)
+        console.error('[spymaster] loadFile failed:', e)
       )
     }
   }
@@ -203,7 +201,7 @@ function createWindow(): void {
   const recover = (why: string): void => {
     if (recoveries >= 3 || !win || win.isDestroyed()) return
     recoveries++
-    console.error(`[monad] renderer ${why} — reloading (attempt ${recoveries})`)
+    console.error(`[spymaster] renderer ${why} — reloading (attempt ${recoveries})`)
     // The reloaded renderer respawns its terminals from canvas.json, so the old
     // ptys are orphaned — a hard reload/crash never runs React's unmount cleanup.
     // Kill them here or each crash-recovery leaks a whole set of live shells.
@@ -277,8 +275,8 @@ if (!app.requestSingleInstanceLock()) {
   installMacMenu(() => win)
 
   // macOS dock icon (the running dev app otherwise shows the Electron icon).
-  if (process.platform === 'darwin' && app.dock && existsSync(iconPng)) {
-    app.dock.setIcon(nativeImage.createFromPath(iconPng))
+  if (process.platform === 'darwin' && app.dock && existsSync(appIcon)) {
+    app.dock.setIcon(nativeImage.createFromPath(appIcon))
   }
 
   createWindow()
@@ -287,7 +285,7 @@ if (!app.requestSingleInstanceLock()) {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
   }).catch((e) => {
-    console.error('[monad] failed to start:', e)
+    console.error('[spymaster] failed to start:', e)
     app.quit()
   })
 

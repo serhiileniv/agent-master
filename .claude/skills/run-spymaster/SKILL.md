@@ -1,11 +1,11 @@
 ---
-name: run-monad
-description: Build, run, and start the Monad (agent-canvas) Electron desktop app so a human can review it. Use when asked to run, start, launch, or preview the app, or to confirm a UI change in the real window.
+name: run-spymaster
+description: Build, run, and start the Spy Master (agent-canvas) Electron desktop app so a human can review it. Use when asked to run, start, launch, or preview the app, or to confirm a UI change in the real window.
 ---
 
-# Run Monad (agent-canvas)
+# Run Spy Master (agent-canvas)
 
-Monad is an **Electron desktop app** (electron-vite + React renderer). To review
+Spy Master is an **Electron desktop app** (electron-vite + React renderer). To review
 a change, launch the real window with `npm run dev` and look at it.
 
 **All paths below are relative to the repo root**, and commands assume that is
@@ -85,13 +85,13 @@ needs to render a specific state without clicking through the UI:
 
 ## Launching a second instance alongside the installed app (Windows)
 
-If the packaged app is installed and open, it runs as **`Monad.exe`** (not
-`electron.exe`) and holds a **single-instance lock keyed to the `monad`
+If the packaged app is installed and open, it runs as **`Spy Master.exe`** (not
+`electron.exe`) and holds a **single-instance lock keyed to the `spymaster`
 userData dir** (`index.ts` `requestSingleInstanceLock`). So a plain
 `npm run dev` / `npx electron .` launched while it's open acquires no lock and
 `app.quit()`s immediately — a clean **exit 0** right after "start electron
 app…", easily mistaken for a crash. `Get-Process electron` also shows nothing,
-because the installed app is `Monad.exe`.
+because the installed app is `Spy Master.exe`.
 
 To run a source build next to it without touching the user's app, give the new
 instance its **own userData dir** (separate lock) and launch it **detached via
@@ -105,7 +105,7 @@ there is nothing machine-specific to edit:
 ```powershell
 npm run build   # first — dev runs leave out/main pointing at the dev server
 $repo = (Get-Location).Path
-$ud = Join-Path $env:TEMP 'monad-dev-userdata'
+$ud = Join-Path $env:TEMP 'spymaster-dev-userdata'
 New-Item -ItemType Directory -Force -Path $ud | Out-Null
 $exe = Join-Path $repo 'node_modules\electron\dist\electron.exe'
 Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{

@@ -17,8 +17,10 @@ dist/
 *.err
 b.out
 
-# Per-project runtime data (terminal layout) + agent worktrees
+# Agent worktrees
+.spymaster-worktrees/
+# Per-project runtime data (terminal layout) + worktrees, from earlier names.
+# Still read, so still ignored.
 .monad/
 .monad-worktrees/
-# Stale canvas dir written by pre-rename builds
 .agent-canvas/

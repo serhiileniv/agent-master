@@ -26,7 +26,7 @@ export default function UpdateBanner(): JSX.Element | null {
   const ready = ustate?.status === 'ready'
   const downloading = ustate?.status === 'downloading'
   const text = ready
-    ? `Monad ${update.latest} is downloaded. Restart to finish updating.`
+    ? `Spy Master ${update.latest} is downloaded. Restart to finish updating.`
     : reminderHeadline(update, tone)
 
   return (

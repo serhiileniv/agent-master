@@ -62,7 +62,7 @@ export default function Rail(): JSX.Element {
       const git = await window.api.git.info(ref.path)
       setTarget({ path: ref.path, name: ref.name, isGit: git.isGit })
     } catch (e) {
-      console.error('[monad] choose agent folder failed:', e)
+      console.error('[spymaster] choose agent folder failed:', e)
       useStore.getState().pushToast('Couldn’t open that folder.', 'error')
     }
   }

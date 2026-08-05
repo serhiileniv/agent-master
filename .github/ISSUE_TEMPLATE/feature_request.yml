@@ -12,7 +12,7 @@ body:
     id: problem
     attributes:
       label: What were you trying to do?
-      description: The task or workflow that Monad made hard, slow, or impossible.
+      description: The task or workflow that Spy Master made hard, slow, or impossible.
       placeholder: I wanted to compare two agents' diffs side by side before merging, but...
     validations:
       required: true

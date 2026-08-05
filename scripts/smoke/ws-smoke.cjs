@@ -15,11 +15,11 @@ const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.
 
 app.disableHardwareAcceleration()
 // Isolate localStorage/userData so a real install's persisted tabs don't leak in.
-app.setPath('userData', join(os.tmpdir(), 'monad-ws-ud-' + process.pid))
+app.setPath('userData', join(os.tmpdir(), 'spymaster-ws-ud-' + process.pid))
 
-const A = join(os.tmpdir(), 'monad-ws-A-' + process.pid)
-const B = join(os.tmpdir(), 'monad-ws-B-' + process.pid)
-const WT_CONTAINER = join(os.tmpdir(), '.monad-worktrees')
+const A = join(os.tmpdir(), 'spymaster-ws-A-' + process.pid)
+const B = join(os.tmpdir(), 'spymaster-ws-B-' + process.pid)
+const WT_CONTAINER = join(os.tmpdir(), '.spymaster-worktrees')
 const errors = []
 
 function git(repo, args) {
@@ -118,7 +118,7 @@ app.whenReady().then(async () => {
   const ptyStable = !!ptyA && ptyA_afterOpenB === ptyA && ptyA_afterBack === ptyA
   const aAlive = aStatus && aStatus !== 'exited' && aStatus !== 'error'
   const twoLive = liveCount === 2
-  const persisted = !!openSet && openSet.includes('monad-ws-A') && openSet.includes('monad-ws-B')
+  const persisted = !!openSet && openSet.includes('spymaster-ws-A') && openSet.includes('spymaster-ws-B')
   // Ignore benign network noise (update-feed / feedback) — only real errors fail.
   const realErrors = errors.filter(
     (e) => !/update|feedback|net::|ERR_|Failed to fetch|ECONNREFUSED|getaddrinfo|favicon/i.test(e)

@@ -16,7 +16,7 @@ const os = require('os')
 const { join } = require('path')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
-const DEMO_ROOT = join(os.tmpdir(), 'monad-demo')
+const DEMO_ROOT = join(os.tmpdir(), 'spymaster-demo')
 const FRAMES = join(DEMO_ROOT, 'frames')
 const NAMES = ['storefront', 'payments-api', 'mobile-app']
 const PATHS = NAMES.map((n) => join(DEMO_ROOT, n))
@@ -184,7 +184,7 @@ app.whenReady().then(async () => {
     x: 0,
     y: 0,
     show: true,
-    title: 'MonadGifCapture',
+    title: 'SpyMasterGifCapture',
     backgroundColor: '#00000000',
     backgroundMaterial: 'mica',
     titleBarStyle: 'hidden',

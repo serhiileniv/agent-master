@@ -20,7 +20,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error('[monad] renderer crashed:', error, info.componentStack)
+    console.error('[spymaster] renderer crashed:', error, info.componentStack)
   }
 
   render(): ReactNode {
@@ -30,12 +30,12 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div className="crash__card">
           <h1 className="crash__title">Something went wrong</h1>
           <p className="crash__msg">
-            Monad hit an unexpected error. Your open terminals were interrupted, but your
+            Spy Master hit an unexpected error. Your open terminals were interrupted, but your
             saved workspace is safe. Reloading usually fixes it.
           </p>
           <pre className="crash__detail">{this.state.error.message}</pre>
           <button className="crash__btn" onClick={() => window.location.reload()}>
-            Reload Monad
+            Reload Spy Master
           </button>
         </div>
       </div>

@@ -4,6 +4,15 @@
 - **Written:** 2026-07-21
 - **Shipped in:** v0.0.0 _(fill on merge)_
 
+> **Note, 2026-08-05 — the app was renamed to Spy Master.** "The idea" below derives this design
+> from Leibniz's *monad*, and that naming rationale no longer holds. The **decisions** it produced
+> are unaffected and still describe the shipped app: the warm oxblood substrate, the single accent,
+> glass confined to transient surfaces, and the removal of the ambient orbs all stand on their own
+> reasoning about contrast, cost, and restraint — none of them depend on the old name. Left as
+> written rather than retro-fitted to a new metaphor, because rewriting the argument after the fact
+> would misrepresent why these choices were made. Re-arguing the identity around the new name is
+> separate work.
+
 ## Problem
 
 Monad has no design idea. It has a collection of default treatments — frosted glass on every

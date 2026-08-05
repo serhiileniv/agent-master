@@ -3,7 +3,7 @@ export interface RecentProject {
   name: string
 }
 
-// Legacy 'vectro.' prefix kept deliberately: the app was renamed to Monad, but
+// Legacy 'vectro.' prefix kept deliberately: the app was renamed to Spy Master, but
 // changing the key would orphan every user's recent-projects list.
 export const RECENT_KEY = 'vectro.recent'
 

@@ -1,10 +1,22 @@
 # Changelog
 
 Notable changes per release. Installers for every version are on the
-[releases page](https://github.com/Serhii-Leniv/Monad/releases).
+[releases page](https://github.com/Serhii-Leniv/spymaster/releases).
 
 This file was reconstructed from git history at v0.1.25; entries before then are summarised rather
-than exhaustive.
+than exhaustive. Entries below keep the product name they shipped under.
+
+## Unreleased
+
+- **Renamed Monad → Spy Master**, with a new app icon: a fedora-and-shades silhouette lit by the
+  ember of a cigar, drawn in the app's own palette. macOS gets the inset squircle tile it expects
+  and Windows a full-bleed square. Regenerate both with `npm run icons`.
+- **This is a clean break, on purpose.** New app identity means a new settings folder, so Spy Master
+  starts empty rather than inheriting a Monad profile, and installed copies of Monad will not
+  auto-update to it. The one-shot Vectro→Monad profile migration was removed at the same time.
+- **Your agent worktrees are not affected.** New ones go to `.spymaster-worktrees/`, but a worktree
+  created before the rename is adopted where it stands, and orphan cleanup still knows about both
+  locations. `.monad/canvas.json` is likewise still read.
 
 ## v0.1.27
 

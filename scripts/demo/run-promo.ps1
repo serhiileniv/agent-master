@@ -1,4 +1,4 @@
-# Records the Monad promo end to end.
+# Records the Spy Master promo end to end.
 #
 #   1. reseed the throwaway demo repos
 #   2. launch the choreographer detached (WMI escapes the tool session's job
@@ -7,11 +7,11 @@
 #   4. write `go` so the timeline plays into the recording
 #   5. on `done`, trim the raw capture to the exact timeline length
 #
-# Output: %TEMP%\monad-demo\out\monad-promo.mp4
+# Output: %TEMP%\spymaster-demo\out\spymaster-promo.mp4
 $ErrorActionPreference = 'Stop'
 
 $repo   = 'D:\IT\Projects\agent-canvas'
-$demo   = Join-Path $env:TEMP 'monad-demo'
+$demo   = Join-Path $env:TEMP 'spymaster-demo'
 $signal = Join-Path $demo 'signal'
 $outDir = Join-Path $demo 'out'
 $ff     = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\ffmpeg.exe'
@@ -47,7 +47,7 @@ while (-not (Test-Path (Join-Path $signal 'ready'))) {
 }
 
 $raw   = Join-Path $outDir 'raw.mp4'
-$final = Join-Path $outDir 'monad-promo.mp4'
+$final = Join-Path $outDir 'spymaster-promo.mp4'
 Write-Host '[run] starting ffmpeg'
 # -draw_mouse 0: a stray cursor parked mid-canvas reads as a dead pixel in a promo.
 # PRIVACY GATE. gdigrab's title= capture returns black for Chromium's
@@ -74,7 +74,7 @@ public class ZProbe {
   }
 }
 '@
-# The user's real Monad may legitimately be running (this session can be hosted
+# The user's real Spy Master may legitimately be running (this session can be hosted
 # inside it), and the two windows are visually identical -- so raise the demo
 # window by its unique caption rather than asking anyone to pick the right one.
 # Called from the user's interactive session, so the foreground change is allowed.
@@ -110,16 +110,16 @@ public class WRaise {
 $probes = @(@(960, 540), @(120, 140), @(1800, 900), @(960, 1000))
 $bad = $null
 for ($i = 0; $i -lt 75; $i++) {
-  $null = [WRaise]::Raise('MonadPromoCapture')
+  $null = [WRaise]::Raise('SpyMasterPromoCapture')
   Start-Sleep -Milliseconds 250
   $bad = $null
   foreach ($p in $probes) {
     $t = [ZProbe]::At($p[0], $p[1])
-    if ($t -ne 'MonadPromoCapture') { $bad = "$t @ $($p[0]),$($p[1])"; break }
+    if ($t -ne 'SpyMasterPromoCapture') { $bad = "$t @ $($p[0]),$($p[1])"; break }
   }
   if (-not $bad) { break }
   # Windows can refuse the topmost promotion if another window was just focused.
-  # Give the user a chance to click Monad rather than failing after 10s.
+  # Give the user a chance to click Spy Master rather than failing after 10s.
   if ($i -eq 8) {
     Write-Host "[run] Still not in front (seeing '$bad') - retrying the raise."
     Write-Host '[run] The demo window is the FULLSCREEN one (tabs: storefront / payments-api / mobile-app).'
@@ -129,9 +129,9 @@ for ($i = 0; $i -lt 75; $i++) {
 }
 if ($bad) {
   Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force
-  throw "ABORTED: the Monad window is not covering the screen (saw '$bad'). Nothing was recorded."
+  throw "ABORTED: the Spy Master window is not covering the screen (saw '$bad'). Nothing was recorded."
 }
-Write-Host '[run] screen coverage verified: MonadPromoCapture'
+Write-Host '[run] screen coverage verified: SpyMasterPromoCapture'
 
 Start-Process -FilePath $ff -WindowStyle Hidden -ArgumentList @(
   '-y', '-f', 'gdigrab', '-framerate', '30', '-draw_mouse', '0', '-i', 'desktop',

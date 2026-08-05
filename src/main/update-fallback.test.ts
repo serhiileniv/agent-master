@@ -40,11 +40,11 @@ describe('checkForUpdate fallback', () => {
     // Only meaningful on win32, where canAutoUpdate() is true; the suite runs
     // there. Elsewhere the updater branch is skipped and the REST path is the
     // only path anyway, which these assertions still hold for.
-    process.env.MONAD_UPDATE_CHECK = '1'
+    process.env.SPYMASTER_UPDATE_CHECK = '1'
   })
 
   afterEach(() => {
-    delete process.env.MONAD_UPDATE_CHECK
+    delete process.env.SPYMASTER_UPDATE_CHECK
     vi.unstubAllGlobals()
   })
 

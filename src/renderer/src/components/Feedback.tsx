@@ -13,7 +13,7 @@ const CATEGORIES: { id: Category; label: string }[] = [
 
 const PLACEHOLDER: Record<Category, string> = {
   bug: 'What went wrong, and what were you doing when it happened?',
-  idea: 'What would you like Monad to do?',
+  idea: 'What would you like Spy Master to do?',
   other: 'Anything on your mind: comments, praise, questions…'
 }
 
@@ -130,7 +130,7 @@ export default function Feedback(): JSX.Element {
       </div>
 
       <div className="feedback__foot">
-        <span className="feedback__meta">{version ? `Monad v${version}` : ''}</span>
+        <span className="feedback__meta">{version ? `Spy Master v${version}` : ''}</span>
         <button
           className="feedback__send"
           disabled={!message.trim() || sending}

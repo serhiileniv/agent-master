@@ -15,7 +15,7 @@ const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.
 
 app.disableHardwareAcceleration()
 
-const TMP = join(os.tmpdir(), 'monad-file-smoke-' + process.pid)
+const TMP = join(os.tmpdir(), 'spymaster-file-smoke-' + process.pid)
 fs.mkdirSync(join(TMP, 'sub'), { recursive: true })
 fs.mkdirSync(join(TMP, 'node_modules'), { recursive: true })
 

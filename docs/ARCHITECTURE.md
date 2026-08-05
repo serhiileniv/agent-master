@@ -1,11 +1,11 @@
 # Architecture
 
-How Monad is put together, for anyone modifying it. For build and run instructions see
+How Spy Master is put together, for anyone modifying it. For build and run instructions see
 [CONTRIBUTING.md](../CONTRIBUTING.md); for cutting a release see [RELEASING.md](RELEASING.md).
 
 ## Overview
 
-Monad is an Electron app with the standard three-process split. The main process owns everything
+Spy Master is an Electron app with the standard three-process split. The main process owns everything
 privileged — PTYs, git, the filesystem — and the renderer owns nothing but pixels and state. All
 crossings go through a narrow, explicitly enumerated `contextBridge` API.
 
@@ -28,7 +28,7 @@ Each agent card is a real PTY. xterm.js in the renderer talks to
 [`node-pty`](https://github.com/microsoft/node-pty) in the main process over IPC.
 
 `node-pty` ships as a **prebuilt** binary (`@homebridge/node-pty-prebuilt-multiarch`), which is why
-no native toolchain is needed to build Monad. `.npmrc` pins the Electron ABI the prebuilt is
+no native toolchain is needed to build Spy Master. `.npmrc` pins the Electron ABI the prebuilt is
 compiled against — **if you bump the Electron major version, that pin must move with it**, or the
 module will fail to load at runtime. `npm run smoke:pty` exists specifically to catch this.
 
@@ -38,7 +38,7 @@ a chatty agent generating output at full speed will otherwise saturate IPC and h
 ## Isolation
 
 Every agent gets `git worktree add` on its own branch (`canvas/<id>`), checked out into a sibling
-`.monad-worktrees/` directory next to the repository — deliberately outside the repo so it never
+`.spymaster-worktrees/` directory next to the repository — deliberately outside the repo so it never
 appears in the user's own status or file tree.
 
 Agents are **cwd-pinned after spawn**, so a shell profile that `cd`s on startup can't quietly move
@@ -67,7 +67,7 @@ and the legacy migration.
 
 ## Updates
 
-On launch the app checks the [release feed](https://github.com/Serhii-Leniv/Monad/releases) and
+On launch the app checks the [release feed](https://github.com/Serhii-Leniv/spymaster/releases) and
 shows an in-app notice when a newer version exists. Windows additionally supports true in-place
 auto-update via `electron-updater`, which requires `latest*.yml` and blockmap files to be attached
 to every release — see [RELEASING.md](RELEASING.md).

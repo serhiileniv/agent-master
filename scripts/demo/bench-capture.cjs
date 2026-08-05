@@ -6,7 +6,7 @@ const os = require('os')
 const { join } = require('path')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
-const DEMO_ROOT = join(os.tmpdir(), 'monad-demo')
+const DEMO_ROOT = join(os.tmpdir(), 'spymaster-demo')
 const NAMES = ['storefront', 'payments-api', 'mobile-app']
 const PATHS = NAMES.map((n) => join(DEMO_ROOT, n))
 const SIZES = [

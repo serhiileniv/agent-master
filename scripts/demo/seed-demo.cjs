@@ -1,4 +1,4 @@
-// Seeds throwaway git repos for the Monad promo video.
+// Seeds throwaway git repos for the Spy Master promo video.
 //
 // The promo shows agents working in isolated git worktrees, browsing files, and
 // merging a real diff -- so the demo projects must be REAL git repos with real
@@ -11,7 +11,7 @@ const fs = require('fs')
 const os = require('os')
 const { join } = require('path')
 
-const ROOT = join(os.tmpdir(), 'monad-demo')
+const ROOT = join(os.tmpdir(), 'spymaster-demo')
 
 /** Projects become the tab names in the video, so they read like real work. */
 const PROJECTS = [
@@ -77,8 +77,8 @@ function seed(p) {
   }
   git(dir, ['init', '-b', 'main'])
   // Local identity only -- never touches the user's global git config.
-  git(dir, ['config', 'user.email', 'demo@monad.local'])
-  git(dir, ['config', 'user.name', 'Monad Demo'])
+  git(dir, ['config', 'user.email', 'demo@spymaster.local'])
+  git(dir, ['config', 'user.name', 'Spy Master Demo'])
   git(dir, ['add', '.'])
   git(dir, ['commit', '-m', 'Initial commit'])
   return dir

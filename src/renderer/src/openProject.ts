@@ -122,7 +122,7 @@ export async function saveWorkspaces(): Promise<void> {
 // reloading — but the flush-on-unload would faithfully rewrite it and undo the
 // setup. This lets a harness stop persistence first. Never called by the app.
 if (typeof window !== 'undefined') {
-  ;(window as unknown as Record<string, unknown>).__monadDisablePersist = (): void => {
+  ;(window as unknown as Record<string, unknown>).__spymasterDisablePersist = (): void => {
     persistEnabled = false
   }
 }
@@ -161,7 +161,7 @@ async function migrateLegacyWorkspaces(): Promise<PersistedWorkspace[]> {
         agents: saved?.agents ?? []
       })
     } catch (e) {
-      console.error('[monad] migrate workspace failed:', path, e)
+      console.error('[spymaster] migrate workspace failed:', path, e)
     }
   }
   return out
@@ -190,7 +190,7 @@ export async function initGitForProject(path: string): Promise<void> {
         'info'
       )
   } catch (e) {
-    console.error('[monad] git init failed:', e)
+    console.error('[spymaster] git init failed:', e)
     useStore.getState().pushToast('Couldn’t initialize git here.', 'error')
   }
 }
@@ -208,7 +208,7 @@ export async function pickFolderForWorkspace(id: string): Promise<void> {
     useStore.getState().setWorkspacePath(id, ref, git)
     pushRecent(ref)
   } catch (e) {
-    console.error('[monad] pick folder for workspace failed:', e)
+    console.error('[spymaster] pick folder for workspace failed:', e)
     useStore.getState().pushToast('Couldn’t open that folder.', 'error')
   }
 }
@@ -232,7 +232,7 @@ async function cleanOrphanWorktrees(path: string): Promise<void> {
         .pushToast(`Removed ${removed} worktree${removed === 1 ? '' : 's'}`, 'success')
     }
   } catch (e) {
-    console.error('[monad] worktree cleanup failed:', e)
+    console.error('[spymaster] worktree cleanup failed:', e)
     useStore.getState().pushToast('Couldn’t clean up the leftover worktrees.', 'error')
   }
 }
@@ -343,7 +343,7 @@ export async function openProjectByPath(ref: RecentProject): Promise<void> {
     // are in the owned set.
     if (git.isGit) void checkOrphanWorktrees(ref.path)
   } catch (e) {
-    console.error('[monad] open project failed:', e)
+    console.error('[spymaster] open project failed:', e)
     useStore.getState().pushToast(`Couldn’t open “${ref.name}”`, 'error')
   } finally {
     opening = false
@@ -373,7 +373,7 @@ export async function openProjectInteractive(): Promise<void> {
     if (!ref) return
     await openProjectByPath(ref)
   } catch (e) {
-    console.error('[monad] open folder failed:', e)
+    console.error('[spymaster] open folder failed:', e)
     useStore.getState().pushToast('Couldn’t open that folder', 'error')
   }
 }
@@ -391,7 +391,7 @@ export async function restoreWorkspaces(): Promise<void> {
   try {
     saved = await window.api.workspaces.load()
   } catch (e) {
-    console.error('[monad] workspaces:load failed:', e)
+    console.error('[spymaster] workspaces:load failed:', e)
   }
   // No app-data store yet → either a first run or an upgrade from the old split
   // persistence. Migrating writes the new file on the first save below.
@@ -435,7 +435,7 @@ export async function restoreWorkspaces(): Promise<void> {
       void window.api.git.prune(path)
       if (git.isGit) void checkOrphanWorktrees(path)
     } catch (e) {
-      console.error('[monad] restore git info failed:', path, e)
+      console.error('[spymaster] restore git info failed:', path, e)
     }
   }
 

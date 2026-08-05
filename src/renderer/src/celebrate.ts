@@ -6,11 +6,11 @@
  * it is the one place expressive motion is earned. Everywhere else, motion in a
  * tool used hundreds of times a day costs more than it returns.
  *
- * What it shows is the app's own idea rather than a generic celebration. A
- * monad is a sealed unit; separate units never touch, yet they resolve into one
- * whole. So two hairlines travel in from opposite edges and meet: the seam
- * closing. It reads as harmony rather than applause, and it is drawn in the
- * app's own accent rather than in party colours.
+ * What it shows is what a merge IS rather than a generic celebration. Two lines
+ * of work ran in isolation, never touching, and now resolve into one: so two
+ * hairlines travel in from opposite edges and meet, the seam closing. It reads
+ * as harmony rather than applause, and it is drawn in the app's own accent
+ * rather than in party colours.
  *
  * This replaced a 26-particle confetti burst that used five colours, three of
  * which (a cyan, a purple, a yellow) appeared nowhere else in the interface.

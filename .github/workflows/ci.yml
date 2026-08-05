@@ -25,8 +25,8 @@ jobs:
       # phase2/3 smokes commit in throwaway repos; git needs an identity.
       - name: Configure git identity
         run: |
-          git config --global user.name "monad-ci"
-          git config --global user.email "ci@monad.invalid"
+          git config --global user.name "spymaster-ci"
+          git config --global user.email "ci@spymaster.invalid"
       # .npmrc pins runtime=electron target=29.4.6 so the right prebuilt
       # node-pty binary is fetched for this runner's OS/arch.
       - run: npm ci

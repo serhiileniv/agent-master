@@ -122,19 +122,52 @@ function shortId(agentId: string): string {
   return agentId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)
 }
 
+/** Sibling folder holding this repo's agent worktrees. */
+const WORKTREE_DIR = '.spymaster-worktrees'
+/**
+ * Where they lived before the app was renamed from Spy Master. Still found, still
+ * adopted, still cleaned — and never treated as an orphan while an agent owns
+ * it. Git registers worktrees by absolute path inside the user's `.git`, so a
+ * pre-rename checkout does not move just because this constant changed: an
+ * agent restored after the rename must be handed the folder it is already in,
+ * or `worktree add` fails on a branch that is already checked out and the
+ * agent's work is stranded.
+ */
+const LEGACY_WORKTREE_DIR = '.monad-worktrees'
+
+/** Both places an agent worktree for this repo may legitimately live. The
+ *  destructive paths whitelist exactly these two and nothing else. */
+export function worktreeContainers(repoRoot: string): string[] {
+  const parent = dirname(repoRoot)
+  return [join(parent, WORKTREE_DIR), join(parent, LEGACY_WORKTREE_DIR)]
+}
+
 /** Deterministic worktree location/branch for an agent, kept OUTSIDE the repo
  *  (sibling folder) so the agent never sees nested worktrees as untracked. */
 export function worktreeInfo(
   repoRoot: string,
   agentId: string
-): { path: string; branch: string; container: string } {
+): { path: string; branch: string; container: string; legacyPath: string } {
   const short = shortId(agentId)
-  const container = join(dirname(repoRoot), '.monad-worktrees')
+  const [container, legacyContainer] = worktreeContainers(repoRoot)
+  const leaf = `${basename(repoRoot)}-${short}`
   return {
     container,
-    path: join(container, `${basename(repoRoot)}-${short}`),
+    path: join(container, leaf),
+    legacyPath: join(legacyContainer, leaf),
     branch: `canvas/${short}`
   }
+}
+
+/**
+ * The worktree an agent ACTUALLY occupies. New agents get the current
+ * container; ones created before the rename are adopted where they stand. Every
+ * consumer — diff, merge, apply, remove — must ask rather than assume, or it
+ * silently operates on a path that does not exist.
+ */
+export function agentWorktreePath(repoRoot: string, agentId: string): string {
+  const { path, legacyPath } = worktreeInfo(repoRoot, agentId)
+  return !existsSync(path) && existsSync(legacyPath) ? legacyPath : path
 }
 
 export interface WorktreeResult {
@@ -188,8 +221,14 @@ function withRepoLock<T>(repoRoot: string, fn: () => Promise<T>): Promise<T> {
 /** Create (or reuse) a git worktree + branch for an agent. Branches off the
  *  repo's current HEAD. Throws if the repo has no commits yet. */
 export async function createWorktree(repoRoot: string, agentId: string): Promise<WorktreeResult> {
-  const { path, branch } = worktreeInfo(repoRoot, agentId)
+  const { path, legacyPath, branch } = worktreeInfo(repoRoot, agentId)
   return withRepoLock(repoRoot, async () => {
+    // Pre-rename agent: its checkout is registered under the legacy container.
+    // Adopt it in place — relocating would need git surgery, and adding a second
+    // worktree on the same branch simply fails, stranding the agent's work.
+    if (existsSync(legacyPath) && (await isRegisteredWorktree(repoRoot, legacyPath))) {
+      return { path: legacyPath, branch, created: false }
+    }
     if (existsSync(path)) {
       if (await isRegisteredWorktree(repoRoot, path)) return { path, branch, created: false }
       // Stale directory squatting on the path — clear git's view of it and let
@@ -208,14 +247,17 @@ export async function createWorktree(repoRoot: string, agentId: string): Promise
 }
 
 export async function removeWorktree(repoRoot: string, agentId: string): Promise<void> {
-  const { path, branch } = worktreeInfo(repoRoot, agentId)
+  const { path, legacyPath, branch } = worktreeInfo(repoRoot, agentId)
   // Same lock as createWorktree — a remove landing between another agent's
   // `worktree add` and its metadata write would corrupt git's worktree list.
   await withRepoLock(repoRoot, async () => {
-    try {
-      await git(repoRoot, ['worktree', 'remove', '--force', path])
-    } catch {
-      /* not registered / already gone */
+    // Both locations: the agent may have been adopted from the legacy container.
+    for (const p of [path, legacyPath]) {
+      try {
+        await git(repoRoot, ['worktree', 'remove', '--force', p])
+      } catch {
+        /* not registered / already gone */
+      }
     }
     try {
       await git(repoRoot, ['branch', '-D', branch])
@@ -271,7 +313,7 @@ function normPath(p: string): string {
  * Worktrees left behind by crashed / force-quit sessions. `worktree prune` at
  * project open can't help — these are still registered, with live folders and
  * branches. Detection is deliberately narrow: only entries inside THIS repo's
- * `.monad-worktrees` container that follow this repo's `<repoName>-<short>`
+ * worktree containers that follow this repo's `<repoName>-<short>`
  * naming, minus the ones owned by current agents (derived via the exact same
  * worktreeInfo the app creates worktrees with, so a live agent can never match).
  */
@@ -300,13 +342,24 @@ export async function findOrphanWorktrees(
   }
   if (cur) entries.push(cur)
 
-  // container/naming don't depend on the agent id — any id yields them.
-  const container = normPath(worktreeInfo(repoRoot, 'probe').container) + '/'
+  // container/naming don't depend on the agent id — any id yields them. Both
+  // containers are scanned: leftovers from before the rename are still orphans
+  // and still worth cleaning.
+  const containers = worktreeContainers(repoRoot).map((c) => normPath(c) + '/')
   const namePrefix = normPath(`${basename(repoRoot)}-`)
-  const owned = new Set(ownedAgentIds.map((id) => normPath(worktreeInfo(repoRoot, id).path)))
+  // An owned agent may sit in EITHER container (adopted ones stay in the legacy
+  // one), so both of its candidate paths are excluded. Miss this and a live
+  // agent's worktree reads as a leftover and becomes eligible for deletion.
+  const owned = new Set(
+    ownedAgentIds.flatMap((id) => {
+      const i = worktreeInfo(repoRoot, id)
+      return [normPath(i.path), normPath(i.legacyPath)]
+    })
+  )
   const candidates = entries.filter((e) => {
     const n = normPath(e.path)
-    if (!n.startsWith(container)) return false
+    const container = containers.find((c) => n.startsWith(c))
+    if (!container) return false
     const name = n.slice(container.length)
     // Direct child of the container, named for THIS repo, ending in a shortId-
     // shaped suffix — another repo's worktrees share the container, skip them.
@@ -369,14 +422,16 @@ export async function removeOrphanWorktrees(
 ): Promise<number> {
   // Containment re-check stays even though the list is produced in-process now
   // (cleanOrphanWorktrees) — this must never remove a path outside the repo's
-  // worktree container, no matter who calls it.
-  const container = normPath(worktreeInfo(repoRoot, 'probe').container) + '/'
+  // worktree containers, no matter who calls it. The whitelist is exactly the
+  // two known containers; it never widens to "any path".
+  const containers = worktreeContainers(repoRoot).map((c) => normPath(c) + '/')
+  const contained = (p: string): boolean => containers.some((c) => normPath(p).startsWith(c))
   let removed = 0
   for (const o of orphans) {
     // hasWork orphans are filtered HERE, not just by callers: no caller mistake
     // (or stale/forged flag from a future refactor) may reach the destructive
     // path for a worktree whose removal could lose work.
-    if (!o?.path || o.hasWork || !normPath(o.path).startsWith(container)) continue
+    if (!o?.path || o.hasWork || !contained(o.path)) continue
     let ok = false
     try {
       await git(repoRoot, ['worktree', 'remove', '--force', o.path])
@@ -520,7 +575,9 @@ export async function getAgentDiff(
   agentId: string,
   baseBranch: string | null
 ): Promise<DiffResult> {
-  const { path, branch } = worktreeInfo(repoRoot, agentId)
+  const { branch } = worktreeInfo(repoRoot, agentId)
+  // Resolved, not assumed: a pre-rename agent is adopted in the legacy container.
+  const path = agentWorktreePath(repoRoot, agentId)
   let diff = ''
   let error: string | undefined
   let untracked: string[] = []
@@ -593,7 +650,9 @@ export async function mergeAgent(
   agentId: string,
   message: string
 ): Promise<MergeResult> {
-  const { path, branch } = worktreeInfo(repoRoot, agentId)
+  const { branch } = worktreeInfo(repoRoot, agentId)
+  // Resolved, not assumed: a pre-rename agent is adopted in the legacy container.
+  const path = agentWorktreePath(repoRoot, agentId)
   try {
     await git(path, ['add', '-A'])
     const staged = await git(path, ['status', '--porcelain'])
@@ -647,7 +706,9 @@ export async function applyAgentFiles(
   deletedPaths: string[],
   message: string
 ): Promise<MergeResult> {
-  const { path, branch } = worktreeInfo(repoRoot, agentId)
+  const { branch } = worktreeInfo(repoRoot, agentId)
+  // Resolved, not assumed: a pre-rename agent is adopted in the legacy container.
+  const path = agentWorktreePath(repoRoot, agentId)
   const touched = [...paths, ...deletedPaths]
   if (touched.length === 0) return { ok: false, error: 'No files selected.' }
   // `checkout <branch> -- <paths>` (and `git rm`) write straight into the
