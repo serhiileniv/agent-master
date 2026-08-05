@@ -34,6 +34,15 @@ export default defineConfig({
       }
     },
     build: {
+      // electron-vite's renderer preset hard-codes `minify: false`, so until
+      // this line the app shipped UNMINIFIED — 3.20MB of renderer JS, comments
+      // and all, for V8 to read and compile on every single launch. Minified
+      // that is 1.94MB (entry 1449kB -> 826kB, FileView 873kB -> 426kB).
+      //
+      // Renderer only. main + preload total ~52kB, where minifying would save
+      // nothing worth having and would make the stack traces in electron-log —
+      // the only diagnostics we get back from a user's machine — unreadable.
+      minify: 'esbuild',
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/renderer/index.html') }
       }
