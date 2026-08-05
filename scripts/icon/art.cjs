@@ -153,7 +153,11 @@ function defs() {
  * Order matters — face first, then the brim on top of it, so the brim's cast
  * shadow falls across the eyes and the face genuinely disappears into it.
  */
-function figure() {
+function figure(opts = {}) {
+  // `flat` drops the two soft-alpha effects — the brim's cast shadow and the
+  // ember bloom. They are what gives the icon depth, but in the knockout mark
+  // they resolve to a grey halo in the mask and the silhouette loses its edge.
+  const flat = opts.flat === true
   return `
   <g>
     <!-- neck -->
@@ -185,7 +189,7 @@ function figure() {
     <g>
       <path d="M556,634 L716,684" stroke="url(#cigar)" stroke-width="30" stroke-linecap="round" fill="none"/>
       <path d="M562,636 L600,648" stroke="#9a7660" stroke-width="30" opacity="0.45" fill="none"/>
-      <circle cx="732" cy="689" r="96" fill="url(#emberGlow)"/>
+      ${flat ? '' : '<circle cx="732" cy="689" r="96" fill="url(#emberGlow)"/>'}
       <circle cx="732" cy="689" r="22" fill="url(#emberCore)"/>
       <circle cx="728" cy="685" r="8" fill="#ffe6bd" opacity="0.9"/>
     </g>
@@ -202,7 +206,7 @@ function figure() {
     </g>
 
     <!-- HAT. Drawn last so the brim's cast shadow falls across the face. -->
-    <g filter="url(#brimCast)">
+    <g${flat ? '' : ' filter="url(#brimCast)"'}>
       <!-- crown, tall enough to carry the brim, with the fedora's pinch on top -->
       <path d="M292,376
                L306,190
@@ -286,4 +290,59 @@ function macSvg() {
 </svg>`
 }
 
-module.exports = { winSvg, macSvg, squirclePath, C }
+/**
+ * Single-colour knockout of the figure, on transparent — the header mark for
+ * the download site, where the full-colour tile would sink into a dark bar.
+ *
+ * Built as a mask rather than by recolouring: everything the figure paints is
+ * forced to white (so its alpha becomes the mark's shape), then the shades are
+ * painted black back over it to punch them out as holes. Without that the mark
+ * is an anonymous blob — the two lenses are what make it read as a face.
+ */
+function knockoutSvg(color = '#ffffff') {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    ${defs()}
+    <filter id="whiteout" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/>
+    </filter>
+    <mask id="knock">
+      <g filter="url(#whiteout)">${figure({ flat: true })}</g>
+      <rect x="368" y="512" width="120" height="88" rx="22" fill="#000"/>
+      <rect x="536" y="512" width="120" height="88" rx="22" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="1024" height="1024" fill="${color}" mask="url(#knock)"/>
+</svg>`
+}
+
+/**
+ * The social card. Rendered at 2x the 1200x630 unfurl size; because this goes
+ * through a canvas of an explicit size rather than a window capture, it is not
+ * clamped by the display the way the previous og-image was (which is why that
+ * one ended up 1800px wide instead of a clean multiple).
+ */
+function ogSvg(wordmarkDataUrl) {
+  const W = 2400
+  const H = 1260
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <radialGradient id="og" cx="0.5" cy="0.44" r="0.85">
+      <stop offset="0" stop-color="${C.lampMid}"/>
+      <stop offset="0.55" stop-color="${C.lampEdge}"/>
+      <stop offset="1" stop-color="${C.corner}"/>
+    </radialGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#og)"/>
+  <g transform="translate(${W / 2 - 250},170) scale(0.488)">
+    ${knockoutSvg(C.cream).replace(/^<svg[^>]*>|<\/svg>$/g, '')}
+  </g>
+  <image href="${wordmarkDataUrl}" x="${W / 2 - 620}" y="700" width="1240" height="257"/>
+  <text x="${W / 2}" y="1085" text-anchor="middle" fill="${C.emberRim}"
+        font-family="Georgia, serif" font-size="58" font-style="italic">
+    Run your AI coding agents in parallel
+  </text>
+</svg>`
+}
+
+module.exports = { winSvg, macSvg, knockoutSvg, ogSvg, squirclePath, C }

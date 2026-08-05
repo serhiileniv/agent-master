@@ -52,8 +52,8 @@ service — just the app and the tools you point it at.
 
 | Platform | Download |
 | --- | --- |
-| **macOS** (Apple Silicon) | [Spy Master&#8209;macOS&#8209;arm64.dmg](https://github.com/serhiileniv/spymaster/releases/latest/download/Spy%20Master-macOS-arm64.dmg) |
-| **Windows** (x64) | [Spy Master&#8209;Windows&#8209;Setup.exe](https://github.com/serhiileniv/spymaster/releases/latest/download/Spy%20Master-Windows-Setup.exe) |
+| **macOS** (Apple Silicon) | [SpyMaster&#8209;macOS&#8209;arm64.dmg](https://github.com/serhiileniv/spymaster/releases/latest/download/SpyMaster-macOS-arm64.dmg) |
+| **Windows** (x64) | [SpyMaster&#8209;Windows&#8209;Setup.exe](https://github.com/serhiileniv/spymaster/releases/latest/download/SpyMaster-Windows-Setup.exe) |
 
 > [!IMPORTANT]
 > **macOS needs one extra command on first launch.** Spy Master isn't signed with a paid Apple

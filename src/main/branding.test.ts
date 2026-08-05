@@ -52,6 +52,34 @@ describe('app identity', () => {
   // shipped for months and 404s: GitHub redirects a renamed *account* for repo
   // and API URLs, which is why the release feed kept working, but Pages URLs do
   // not redirect — so the in-app "Download" link was dead and nothing caught it.
+  /**
+   * v0.1.30 shipped broken because `artifactName` interpolated `${productName}`,
+   * and the product name contains a space. Every layer sanitised it differently
+   * — GitHub uploaded `Spy.Master-*`, electron-builder wrote `Spy-Master-*` into
+   * latest.yml, and the docs linked `Spy%20Master-*`. Two of the three 404'd, so
+   * the download links were dead and electron-updater fetched a file that did
+   * not exist. Nothing failed at build time; the release just did not work.
+   */
+  it('gives artifacts space-free fixed names, never interpolating productName', () => {
+    const names = [...builder.matchAll(/^ {2}artifactName: (.+)$/gm)].map((m) => m[1].trim())
+    expect(names.length).toBeGreaterThanOrEqual(3)
+    for (const n of names) {
+      expect(n).not.toMatch(/\$\{productName\}/)
+      // Only electron-builder's own ${arch}/${ext} placeholders may remain.
+      expect(n.replace(/\$\{(arch|ext)\}/g, '')).not.toMatch(/\s/)
+      expect(n).toMatch(/^SpyMaster-/)
+    }
+  })
+
+  it('links the docs at the artifact names the build actually produces', () => {
+    for (const f of ['README.md', 'docs/RELEASING.md']) {
+      const t = read(f)
+      expect(t).not.toMatch(/Spy%20Master-(macOS|Windows|Linux)/)
+      expect(t).not.toMatch(/Spy[ .-]Master-(macOS|Windows|Linux)/)
+    }
+    expect(read('README.md')).toContain('download/SpyMaster-Windows-Setup.exe')
+  })
+
   it('uses the real account handle, not the hyphenated one that 404s on Pages', () => {
     for (const f of ['src/main/update.ts', 'electron-builder.yml', 'README.md']) {
       expect(read(f)).not.toMatch(/serhii-leniv/i)

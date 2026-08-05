@@ -22,8 +22,8 @@ fixed-name assets to the tag's release:
 
 | Platform                | Asset                      |
 | ----------------------- | -------------------------- |
-| macOS · Apple Silicon   | `Spy Master-macOS-arm64.dmg`    |
-| Windows · x64           | `Spy Master-Windows-Setup.exe`  |
+| macOS · Apple Silicon   | `SpyMaster-macOS-arm64.dmg`    |
+| Windows · x64           | `SpyMaster-Windows-Setup.exe`  |
 
 The fixed names (set in [`electron-builder.yml`](electron-builder.yml)) are what make
 the site's `releases/latest/download/<name>` links stable across versions. The site

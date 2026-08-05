@@ -75,8 +75,16 @@ mac:
 
 # Fixed (version-less) names so the site can link to a stable
 # releases/latest/download/<name> URL that never goes stale.
+#
+# Hardcoded WITHOUT a space rather than interpolating ${productName}. The product
+# is "Spy Master", and a space in an artifact name is sanitised differently by
+# every layer it passes through: GitHub renames the uploaded asset to
+# Spy.Master-*, electron-builder writes Spy-Master-* into latest.yml, and a URL
+# needs %20. v0.1.30 shipped with all three spellings in play, so the download
+# links 404'd and electron-updater fetched a file that did not exist. The app's
+# display name keeps its space; the artifacts do not.
 dmg:
-  artifactName: ${productName}-macOS-${arch}.dmg
+  artifactName: SpyMaster-macOS-${arch}.dmg
 
 win:
   target:
@@ -87,7 +95,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  artifactName: ${productName}-Windows-Setup.${ext}
+  artifactName: SpyMaster-Windows-Setup.${ext}
 
 linux:
   target:
@@ -96,4 +104,4 @@ linux:
   icon: build/icon.png
 
 appImage:
-  artifactName: ${productName}-Linux-${arch}.${ext}
+  artifactName: SpyMaster-Linux-${arch}.${ext}
