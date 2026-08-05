@@ -6,7 +6,7 @@ Notable changes per release. Installers for every version are on the
 This file was reconstructed from git history at v0.1.25; entries before then are summarised rather
 than exhaustive. Entries below keep the product name they shipped under.
 
-## Unreleased
+## v0.1.30
 
 - **Renamed Monad → Spy Master**, with a new app icon: a fedora-and-shades silhouette lit by the
   ember of a cigar, drawn in the app's own palette. macOS gets the inset squircle tile it expects
