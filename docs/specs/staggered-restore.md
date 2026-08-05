@@ -1,8 +1,14 @@
 # Staggered restore
 
-- **Status:** draft
+- **Status:** draft — **not proceeding** (decided 2026-08-05)
 - **Written:** 2026-08-05
-- **Shipped in:** _(fill on merge)_
+- **Shipped in:** _(not shipped)_
+
+> **Not being built.** Queuing agent starts means one shell that never reports back can hold a slot
+> open, and the mitigation for that (a per-agent deadline) was judged not worth the complexity
+> against a launch cost that the PATH and git-caching fixes already reduce. Kept because the
+> Problem section and the measurements in Notes are the record of why launch was slow; if the heat
+> is still there after those fixes land, this is where to restart — not from scratch.
 
 ## Problem
 
