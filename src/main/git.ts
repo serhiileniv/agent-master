@@ -20,25 +20,78 @@ export interface GitInfo {
   branch: string | null
 }
 
-export async function getGitInfo(dir: string): Promise<GitInfo> {
-  try {
-    const inside = (await git(dir, ['rev-parse', '--is-inside-work-tree'])).trim()
-    if (inside !== 'true') return { isGit: false, repoRoot: null, branch: null }
-    const repoRoot = (await git(dir, ['rev-parse', '--show-toplevel'])).trim()
-    let branch: string | null = null
-    try {
-      branch = (await git(dir, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
-    } catch {
-      /* repo with no commits yet */
-    }
-    return { isGit: true, repoRoot, branch }
-  } catch {
-    return { isGit: false, repoRoot: null, branch: null }
-  }
+/**
+ * Which repo (if any) a directory belongs to.
+ *
+ * Cached, and it matters more than it looks. Nearly everything here starts by
+ * asking this — every worktree create/remove, every prune, every orphan scan,
+ * every diff and merge — and on launch that is once per workspace AND once per
+ * agent, all at the same time. Uncached, restoring a few workspaces of agents
+ * fired ~100 git processes in the first seconds of startup, which on macOS is a
+ * large part of the launch spike.
+ *
+ * A directory's repo root does not change while the app is open. The one thing
+ * that CAN change it is `git init` on a folder that wasn't a repo — which is why
+ * initRepo() clears this. The TTL is belt-and-braces for the exotic rest
+ * (someone deletes .git under us); a wrong answer there fails loudly in the git
+ * command that follows rather than silently mis-isolating an agent.
+ */
+const REPO_ROOT_TTL_MS = 5 * 60_000
+const repoRootCache = new Map<string, { at: number; root: string | null }>()
+
+/** Cache key: same directory spelled two ways must not be two entries. */
+function dirKey(dir: string): string {
+  const d = dir.replace(/\\/g, '/').replace(/\/+$/, '')
+  return process.platform === 'win32' ? d.toLowerCase() : d
 }
 
+/** Forget cached repo roots. Called after `git init`, which is the one operation
+ *  that turns a cached "not a repo" into a wrong answer — and a wrong answer
+ *  there means agents silently keep sharing the folder instead of isolating. */
+export function invalidateRepoRootCache(): void {
+  repoRootCache.clear()
+}
+
+/**
+ * The repo root for a directory, or null if it isn't in a work tree.
+ *
+ * ONE git process, not three: callers here only ever wanted the root, but this
+ * used to go through getGitInfo and throw away the `--is-inside-work-tree` and
+ * branch lookups it paid for. `--show-toplevel` already fails outside a work
+ * tree (including in a bare repo or inside .git/), so it answers both questions.
+ */
 export async function getRepoRootSafe(dir: string): Promise<string | null> {
-  return (await getGitInfo(dir)).repoRoot
+  const key = dirKey(dir)
+  const hit = repoRootCache.get(key)
+  if (hit && Date.now() - hit.at < REPO_ROOT_TTL_MS) return hit.root
+  let root: string | null = null
+  try {
+    root = (await git(dir, ['rev-parse', '--show-toplevel'])).trim() || null
+  } catch {
+    root = null // not a git work tree
+  }
+  repoRootCache.set(key, { at: Date.now(), root })
+  return root
+}
+
+/**
+ * Repo root + current branch.
+ *
+ * The branch is deliberately NOT cached: it changes under us whenever the user
+ * checks something out, and the project bar shows it. Only the root — the
+ * expensive, stable half — comes from the cache, so a warm call is a single
+ * `rev-parse --abbrev-ref HEAD` instead of three round trips.
+ */
+export async function getGitInfo(dir: string): Promise<GitInfo> {
+  const repoRoot = await getRepoRootSafe(dir)
+  if (!repoRoot) return { isGit: false, repoRoot: null, branch: null }
+  let branch: string | null = null
+  try {
+    branch = (await git(dir, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim() || null
+  } catch {
+    /* repo with no commits yet */
+  }
+  return { isGit: true, repoRoot, branch }
 }
 
 export interface InitResult {
@@ -52,6 +105,11 @@ export interface InitResult {
 export async function initRepo(dir: string): Promise<InitResult> {
   try {
     await git(dir, ['init'])
+    // This folder (and anything under it) just became a repo. A cached "not a
+    // repo" here would keep every agent in it sharing the folder while the UI
+    // says isolation is available — clear the lot rather than reason about which
+    // entries are now stale.
+    invalidateRepoRootCache()
     return { ok: true }
   } catch (e) {
     return { ok: false, error: friendlyGitError(e) }

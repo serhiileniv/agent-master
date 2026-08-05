@@ -27,6 +27,7 @@ import {
   friendlyGitError
 } from './git'
 import { detectShells, detectAgents } from './shells'
+import { whenPathReady } from './env-path'
 import { checkForUpdate, initAutoUpdate } from './update'
 import { sendFeedback, FEEDBACK_EMAIL, type FeedbackInput, type FeedbackCategory } from './feedback'
 
@@ -204,8 +205,19 @@ export function registerIpc(
     }
   })
 
-  ipcMain.handle('shells:list', () => detectShells())
-  ipcMain.handle('agents:list', () => detectAgents())
+  // Both answer "what is installed on this machine", so both need the recovered
+  // PATH rather than launchd's four dirs. whenPathReady() is instant on every
+  // launch after the first (the answer is remembered on disk); only a genuine
+  // first run waits here — and it waits with the window already on screen,
+  // which is the whole point of not resolving PATH before createWindow.
+  ipcMain.handle('shells:list', async () => {
+    await whenPathReady()
+    return detectShells()
+  })
+  ipcMain.handle('agents:list', async () => {
+    await whenPathReady()
+    return detectAgents()
+  })
 
   // App version for display (Settings). app.getVersion() reads package.json in
   // dev and the packaged app metadata in production — same source the update

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergePath } from './env-path'
+import { mergePath, noteIsUsable } from './env-path'
 
 // Guards the macOS "no agents installed" bug: a Finder/Dock launch inherits
 // launchd's minimal PATH, so every agent CLI in Homebrew/nvm/~/.local is
@@ -61,5 +61,43 @@ describe('mergePath', () => {
 
   it('handles every source being empty', () => {
     expect(mergePath(null, '', [])).toBe('')
+  })
+})
+
+/**
+ * The remembered login-shell PATH is what makes every launch after the first
+ * open instantly instead of waiting seconds on the rc chain. It is also the one
+ * thing here that could silently RE-introduce the missing-agents bug: reuse a
+ * note that doesn't describe this machine and the + menu goes empty again.
+ */
+describe('noteIsUsable', () => {
+  it('accepts a note written by the same login shell', () => {
+    expect(noteIsUsable({ shell: '/bin/zsh', path: '/opt/homebrew/bin' }, '/bin/zsh')).toBe(true)
+  })
+
+  it('rejects a note from a DIFFERENT login shell', () => {
+    // zsh → fish is a whole different rc chain; that PATH is someone else's answer.
+    expect(noteIsUsable({ shell: '/bin/zsh', path: '/opt/homebrew/bin' }, '/opt/homebrew/bin/fish'))
+      .toBe(false)
+  })
+
+  it('rejects an empty or blank path so a bad note can never shadow a real harvest', () => {
+    expect(noteIsUsable({ shell: '/bin/zsh', path: '' }, '/bin/zsh')).toBe(false)
+    expect(noteIsUsable({ shell: '/bin/zsh', path: '   ' }, '/bin/zsh')).toBe(false)
+  })
+
+  it('rejects corrupt / hand-edited notes rather than trusting them', () => {
+    expect(noteIsUsable(null, '/bin/zsh')).toBe(false)
+    expect(noteIsUsable('/opt/homebrew/bin', '/bin/zsh')).toBe(false)
+    expect(noteIsUsable({ path: '/opt/homebrew/bin' }, '/bin/zsh')).toBe(false)
+    expect(noteIsUsable({ shell: '/bin/zsh' }, '/bin/zsh')).toBe(false)
+    expect(noteIsUsable({ shell: 1, path: 2 }, '/bin/zsh')).toBe(false)
+  })
+
+  it('matches a note written when $SHELL was unset', () => {
+    // harvestFromLoginShell bails without $SHELL, but a note can still have been
+    // written as '' — it must match the same unset state, not any real shell.
+    expect(noteIsUsable({ shell: '', path: '/usr/bin' }, undefined)).toBe(true)
+    expect(noteIsUsable({ shell: '', path: '/usr/bin' }, '/bin/zsh')).toBe(false)
   })
 })

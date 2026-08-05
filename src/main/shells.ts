@@ -59,19 +59,27 @@ const KNOWN_AGENTS: { id: string; label: string; bins: string[] }[] = [
  *
  * The TTL exists so a CLI the user installs while Monad is open still shows up
  * without a restart; it just takes up to a minute.
+ *
+ * Keyed on the PATH as well as the clock: the background PATH harvest (see
+ * env-path.ts) can widen PATH seconds after launch, and a time-only cache would
+ * keep serving the pre-harvest answer — "no agents installed" — for the rest of
+ * the minute. A changed PATH invalidates immediately.
  */
 const AGENT_CACHE_MS = 60_000
-let agentCache: { at: number; agents: AgentCli[] } | null = null
+let agentCache: { at: number; path: string; agents: AgentCli[] } | null = null
 
 export function detectAgents(): AgentCli[] {
   const now = Date.now()
-  if (agentCache && now - agentCache.at < AGENT_CACHE_MS) return agentCache.agents
+  const path = resolvedPath()
+  if (agentCache && agentCache.path === path && now - agentCache.at < AGENT_CACHE_MS) {
+    return agentCache.agents
+  }
   const out: AgentCli[] = []
   for (const a of KNOWN_AGENTS) {
     const bin = a.bins.find((b) => onPath(b))
     if (bin) out.push({ id: a.id, label: a.label, command: bin })
   }
-  agentCache = { at: now, agents: out }
+  agentCache = { at: now, path, agents: out }
   return out
 }
 

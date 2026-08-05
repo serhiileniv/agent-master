@@ -13,6 +13,9 @@ const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.
 app.disableHardwareAcceleration()
 
 const REPO = join(os.tmpdir(), 'monad-p2-' + process.pid)
+// A folder that starts life as a NON-repo, for the `git init` cache-invalidation
+// case at the end (check 5).
+const PLAIN = join(os.tmpdir(), 'monad-p2-plain-' + process.pid)
 const errors = []
 
 function git(args) {
@@ -105,6 +108,52 @@ app.whenReady().then(async () => {
   const branchGone =
     git(['branch', '--list', r.wt.branch]).trim() === '' // empty => branch deleted
 
+  // --- 5. git init on a NON-repo folder must take effect immediately ---------
+  // getRepoRootSafe caches "which repo does this dir belong to", including the
+  // negative answer, because it is asked once per workspace AND once per agent
+  // on launch (~100 git processes uncached). `git init` is the one operation
+  // that turns a cached "not a repo" into a WRONG answer, and wrong here is the
+  // bad kind: worktree:create silently falls back to `isolated: false` and every
+  // agent writes straight into the user's real folder while the UI says
+  // otherwise. initRepo() clears the cache; this proves it.
+  fs.mkdirSync(PLAIN, { recursive: true })
+  fs.writeFileSync(join(PLAIN, 'file.txt'), 'hello\n')
+  const INIT_AGENT = 'agent-bbbbbbbb'
+  let initFlow
+  try {
+    initFlow = await win.webContents.executeJavaScript(
+      `(async () => {
+        const P = ${JSON.stringify(PLAIN)}
+        // Ask FIRST, so the "not a repo" answer is cached before git init runs.
+        const before = await window.api.git.info(P)
+        await window.api.git.init(P)
+        const after = await window.api.git.info(P)
+        // A repo with no commits can't host a worktree, so make one the way the
+        // app's own toast tells the user to.
+        return { wasGit: before.isGit, isGitAfterInit: after.isGit }
+      })()`,
+      true
+    )
+    if (initFlow.isGitAfterInit) {
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: PLAIN })
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: PLAIN })
+      execFileSync('git', ['add', '.'], { cwd: PLAIN })
+      execFileSync('git', ['commit', '-m', 'init'], { cwd: PLAIN })
+      const wt = await win.webContents.executeJavaScript(
+        `window.api.worktree.create(${JSON.stringify(PLAIN)}, ${JSON.stringify(INIT_AGENT)}, 'worktree')`,
+        true
+      )
+      initFlow.isolatedAfterInit = !!wt.isolated
+      initFlow.cwdOutsideProject = !!wt.cwd && !wt.cwd.startsWith(PLAIN)
+    } else {
+      initFlow.isolatedAfterInit = false
+      initFlow.cwdOutsideProject = false
+    }
+  } catch (e) {
+    errors.push('init-flow: ' + e.message)
+    initFlow = { wasGit: true, isGitAfterInit: false, isolatedAfterInit: false, cwdOutsideProject: false }
+  }
+
   console.log('[p2] git detected         : ' + r.info.isGit + ' (branch ' + r.info.branch + ')')
   console.log('[p2] worktree isolated    : ' + r.wt.isolated + ' branch=' + r.wt.branch)
   console.log('[p2] agent cmd completed   : ' + r.ranInWorktree)
@@ -115,9 +164,17 @@ app.whenReady().then(async () => {
   console.log('[p2] worktree list = 2    : ' + (wtCountAfterCreate === 2) + ' (' + wtCountAfterCreate + ')')
   console.log('[p2] worktree removed     : ' + (wtCountAfterRemove === 1) + ' (' + wtCountAfterRemove + ')')
   console.log('[p2] branch deleted       : ' + branchGone)
+  console.log('[p2] plain dir not a repo : ' + (initFlow.wasGit === false))
+  console.log('[p2] git init takes effect: ' + initFlow.isGitAfterInit)
+  console.log('[p2] isolated after init  : ' + initFlow.isolatedAfterInit)
+  console.log('[p2] worktree outside proj: ' + initFlow.cwdOutsideProject)
   console.log('[p2] console errors       : ' + (errors.length ? errors.join(' | ') : 'none'))
 
   const pass =
+    initFlow.wasGit === false &&
+    initFlow.isGitAfterInit &&
+    initFlow.isolatedAfterInit &&
+    initFlow.cwdOutsideProject &&
     r.info.isGit &&
     r.wt.isolated &&
     r.wt.branch.startsWith('canvas/') &&
@@ -146,6 +203,11 @@ app.whenReady().then(async () => {
 function cleanup() {
   try {
     fs.rmSync(REPO, { recursive: true, force: true })
+  } catch {
+    /* ignore */
+  }
+  try {
+    fs.rmSync(PLAIN, { recursive: true, force: true })
   } catch {
     /* ignore */
   }
