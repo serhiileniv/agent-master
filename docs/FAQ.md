@@ -60,7 +60,7 @@ anywhere — there's no account, no telemetry, and no background service.
 - **Persistence** — the whole tab set lives in `workspaces.json` in the app's user-data folder,
   written atomically.
 - **Updates** — on launch the app checks the
-  [release feed](https://github.com/Serhii-Leniv/spymaster/releases) and shows an in-app notice when
+  [release feed](https://github.com/serhiileniv/spymaster/releases) and shows an in-app notice when
   a newer version is out.
 
 Full details — process split, security posture, and the two test layers — are in

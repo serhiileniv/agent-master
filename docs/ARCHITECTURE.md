@@ -67,7 +67,7 @@ and the legacy migration.
 
 ## Updates
 
-On launch the app checks the [release feed](https://github.com/Serhii-Leniv/spymaster/releases) and
+On launch the app checks the [release feed](https://github.com/serhiileniv/spymaster/releases) and
 shows an in-app notice when a newer version exists. Windows additionally supports true in-place
 auto-update via `electron-updater`, which requires `latest*.yml` and blockmap files to be attached
 to every release — see [RELEASING.md](RELEASING.md).

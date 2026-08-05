@@ -2,7 +2,7 @@
 
 Installers are built by [`.github/workflows/build.yml`](.github/workflows/build.yml) and
 attached as a **GitHub Release on this repo** — that's what the download site
-(https://serhii-leniv.github.io/spymaster) links to. The site itself is GitHub Pages
+(https://serhiileniv.github.io/spymaster) links to. The site itself is GitHub Pages
 serving this repo's `gh-pages` branch. Everything lives here; there is no
 cross-repo publishing and no extra token: the workflow uses the automatic
 `GITHUB_TOKEN`.

@@ -44,8 +44,19 @@ describe('app identity', () => {
 
   it('points the update checker at the renamed repo', () => {
     const update = read('src/main/update.ts')
-    expect(update).toContain('Serhii-Leniv/spymaster')
-    expect(update).not.toMatch(/Serhii-Leniv\/Monad/)
+    expect(update).toContain('serhiileniv/spymaster')
+    expect(update).not.toMatch(/serhiileniv\/Monad/)
+  })
+
+  // The account handle is `serhiileniv`. A hyphenated `serhii-leniv` spelling
+  // shipped for months and 404s: GitHub redirects a renamed *account* for repo
+  // and API URLs, which is why the release feed kept working, but Pages URLs do
+  // not redirect — so the in-app "Download" link was dead and nothing caught it.
+  it('uses the real account handle, not the hyphenated one that 404s on Pages', () => {
+    for (const f of ['src/main/update.ts', 'electron-builder.yml', 'README.md']) {
+      expect(read(f)).not.toMatch(/serhii-leniv/i)
+    }
+    expect(read('src/main/update.ts')).toContain('https://serhiileniv.github.io/spymaster')
   })
 })
 

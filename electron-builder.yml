@@ -32,7 +32,7 @@ npmRebuild: false
 # Publishing itself stays `--publish never` — the CI release step uploads.
 publish:
   provider: github
-  owner: Serhii-Leniv
+  owner: serhiileniv
   repo: spymaster
 
 # Ad-hoc sign the macOS app (no paid cert) so Apple Silicon doesn't flag it as
