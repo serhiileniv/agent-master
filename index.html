@@ -728,12 +728,20 @@
          against a rendered screenshot; the numbers are deliberate. */
       .wm {
         margin-top: 34px;
-        height: 0.74em;
+        /* Raised from 0.74em with the rename: "Monad" had no descenders,
+           "Spy Master" has two, and cropping straight through the p and the y
+           reads as a bug rather than as a deliberate bleed. */
+        height: 0.88em;
         overflow: hidden;
         font-family: var(--font-display);
         font-style: italic;
         font-weight: 550;
-        font-size: clamp(110px, 20vw, 290px);
+        /* Halved from 20vw, which was tuned for a five-letter name. "Spy Master"
+           is twice as long; at 20vw it overflowed the page and rendered as
+           "Spy" with the rest clipped off both sides. ~10.5vw restores the
+           footprint the mark had before, and the max holds that width on very
+           wide screens. */
+        font-size: clamp(60px, 10.5vw, 152px);
         line-height: 0.72;
         letter-spacing: 0.015em;
         text-align: center;
