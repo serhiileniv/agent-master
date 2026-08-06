@@ -85,6 +85,41 @@ const wsA = `${store}.liveWorkspaces.find(w=>w.defaultPath===${JSON.stringify(A)
  */
 const bufferText = (id) => `window.__spymasterTerminalText(${JSON.stringify(id)})`
 
+/**
+ * Poll `check` until it returns truthy, or give up after `ms`.
+ *
+ * The positive assertions must not ride on fixed sleeps: a loaded CI runner can
+ * take far longer to resolve a cwd, spawn two shells and boot PowerShell than a
+ * developer's machine, and a smoke that fails a green change is worse than no
+ * smoke at all. Absence cannot be polled for, so the "held back" checks keep a
+ * generous fixed wait — but they are self-validating, because the matching
+ * "replayed" assertion right after them fails if the output never arrived.
+ */
+/**
+ * Budget for a replay assertion, and it must stay SHORT.
+ *
+ * The flush is a React effect off a store change: it lands in tens of
+ * milliseconds, and nothing about it waits on a frame. But the buffer is also
+ * drained incidentally by ANY output that arrives while the pane is on screen
+ * (the on-screen branch flushes before writing), and stray pty output — a
+ * prompt redraw after the refit's resize — shows up a second or two later. Give
+ * this assertion a generous deadline and it stops testing the flush at all: it
+ * passed with flushAgents() commented out entirely.
+ *
+ * A second cleanly separates the two. The genuinely slow things here (spawning
+ * two shells) get their own long budgets; this one must not borrow them.
+ */
+const REPLAY_MS = 1000
+
+const waitFor = async (check, ms) => {
+  const deadline = Date.now() + ms
+  for (;;) {
+    if (await check()) return true
+    if (Date.now() > deadline) return false
+    await sleep(100)
+  }
+}
+
 /** Type a line into a pane's pty, exactly as the pane itself would. */
 const emit = (ptyId, text) =>
   run(`window.api.pty.write(${JSON.stringify(ptyId)}, ${JSON.stringify(text + '\r')})`)
@@ -120,18 +155,29 @@ app.whenReady().then(async () => {
   await sleep(400)
   await run(`${store}.addAgent()`)
   await run(`${store}.addAgent()`)
-  // Generous: worktree/cwd resolution, spawn, then the quiet-boot reveal, whose
-  // own safety-net timeout is 2.5s.
-  await sleep(4000)
+  // Wait for BOTH ptys to exist rather than guessing a duration: cwd resolution,
+  // two spawns and the quiet-boot reveal (whose own safety net is 2.5s) all have
+  // to land first, and that is much slower on a loaded runner.
+  const spawned = await waitFor(
+    async () => {
+      const p = await run(`(${wsA}).agents.map(a=>a.ptyId)`)
+      return p.length === 2 && p.every(Boolean)
+    },
+    30000
+  )
+  // The reveal clears the screen (term.reset), so let it happen before writing —
+  // otherwise the baseline marker is wiped by the boot sequence that follows it.
+  await sleep(1500)
 
   const ids = await run(`(${wsA}).agents.map(a=>a.id)`)
   const ptyIds = await run(`(${wsA}).agents.map(a=>a.ptyId)`)
-  const spawned = ids.length === 2 && ptyIds.every(Boolean)
 
   // --- Baseline: a visible pane paints as it always did. --------------------
   await emit(ptyIds[1], 'echo VISIBLEMARK')
-  await sleep(1200)
-  const visibleWritten = (await run(bufferText(ids[1]))).includes('VISIBLEMARK')
+  const visibleWritten = await waitFor(
+    async () => (await run(bufferText(ids[1]))).includes('VISIBLEMARK'),
+    15000
+  )
 
   // --- 1. Behind a maximized sibling: buffered, then replayed. --------------
   await run(`${store}.focusTerminal(${JSON.stringify(ids[0])})`)
@@ -146,8 +192,16 @@ app.whenReady().then(async () => {
   const maxHeldBack = !(await run(bufferText(ids[1]))).includes('HIDDENBYMAX')
 
   await run(`${store}.clearFocus()`)
-  await sleep(1200) // two rAFs to restore layout, then flush + refit
-  const maxReplayed = (await run(bufferText(ids[1]))).includes('HIDDENBYMAX')
+  // Correctness check, NOT a guard on the flush: releasing a maximize really
+  // does resize this pane, the shell redraws, and that output drains the buffer
+  // on its own — so this stays true even with flushAgents() removed. The TAB
+  // case below is the one that actually guards the flush path, because a tab
+  // switch resizes nothing and so produces no output to piggyback on.
+  // DELIBERATELY TIGHT (see REPLAY_MS) all the same.
+  const maxReplayed = await waitFor(
+    async () => (await run(bufferText(ids[1]))).includes('HIDDENBYMAX'),
+    REPLAY_MS
+  )
 
   // --- 2. In a background workspace: buffered, then replayed. ---------------
   const gitB = await run(`window.api.git.info(${JSON.stringify(B)})`)
@@ -162,8 +216,10 @@ app.whenReady().then(async () => {
   const tabHeldBack = !(await run(bufferText(ids[1]))).includes('HIDDENBYTAB')
 
   await run(`${store}.setActiveWorkspace((${wsA}).id)`)
-  await sleep(1200)
-  const tabReplayed = (await run(bufferText(ids[1]))).includes('HIDDENBYTAB')
+  const tabReplayed = await waitFor(
+    async () => (await run(bufferText(ids[1]))).includes('HIDDENBYTAB'),
+    REPLAY_MS
+  )
 
   // The agent kept running the whole time — everything it printed while
   // off-screen is present, in order, once it comes back.
