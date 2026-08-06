@@ -474,10 +474,19 @@ describe('friendlyGitError', () => {
     expect(friendlyGitError({ stderr: '   ' })).toBe('Git command failed.')
   })
 
-  // Documenting, not endorsing: a thrown value that is neither an Error nor
-  // carries stderr/message stringifies straight through to the user. Nothing in
-  // this module throws such a value today, which is why it has never shown up.
-  it('has no better answer for a thrown value with nothing to read', () => {
-    expect(friendlyGitError({})).toBe('[object Object]')
+  // A thrown value with nothing readable on it used to stringify straight
+  // through, so the user got "[object Object]" as the explanation for a failed
+  // merge. Nothing in this module throws such a value today — this is about
+  // what happens the first time something does.
+  it('says something useful for a thrown value with nothing to read', () => {
+    expect(friendlyGitError({})).toBe('Git command failed.')
+    expect(friendlyGitError(null)).toBe('Git command failed.')
+    expect(friendlyGitError(undefined)).toBe('Git command failed.')
+    expect(friendlyGitError([])).toBe('Git command failed.')
+  })
+
+  it('still shows a thrown string or number, which does carry information', () => {
+    expect(friendlyGitError('fatal: bad revision')).toBe('bad revision')
+    expect(friendlyGitError(128)).toBe('128')
   })
 })

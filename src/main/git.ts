@@ -835,17 +835,25 @@ export async function applyAgentFiles(
 }
 
 function errText(e: unknown): string {
-  const err = e as { stderr?: string; message?: string }
-  return (err.stderr || err.message || String(e)).trim()
+  const err = e as { stderr?: string; message?: string } | null | undefined
+  const raw = err?.stderr || err?.message
+  if (raw) return raw.trim()
+  // Nothing readable on it. String() would give "[object Object]" for a plain
+  // object and "null" for null, and friendlyGitError surfaces this text
+  // verbatim — so say nothing and let it fall back to its own wording. Only a
+  // thrown string or number stringifies into something worth showing.
+  return typeof e === 'string' || typeof e === 'number' ? String(e).trim() : ''
 }
 
 /** Map a raw git failure to a message a non-expert can act on. Falls back to the
  *  first line of git's own output. */
 export function friendlyGitError(e: unknown): string {
-  const err = e as { code?: string; stderr?: string; message?: string }
+  // Optional: this runs inside catch blocks, so it has to survive whatever was
+  // thrown. A bare `throw null` used to make the error handler itself throw.
+  const err = e as { code?: string; stderr?: string; message?: string } | null | undefined
   const raw = errText(e)
   // execFile couldn't find the git binary at all.
-  if (err.code === 'ENOENT' || /\bENOENT\b/.test(raw) || /is not recognized|not found/i.test(raw)) {
+  if (err?.code === 'ENOENT' || /\bENOENT\b/.test(raw) || /is not recognized|not found/i.test(raw)) {
     return 'Git isn’t installed or isn’t on your PATH. Install Git, then reopen this project.'
   }
   if (/does not have any commits yet|ambiguous argument 'HEAD'|invalid reference: HEAD|unknown revision/i.test(raw)) {
