@@ -35,6 +35,18 @@ module will fail to load at runtime. `npm run smoke:pty` exists specifically to 
 PTY output is batched before crossing the IPC boundary rather than sent per-chunk. This matters:
 a chatty agent generating output at full speed will otherwise saturate IPC and heat the machine.
 
+**Off-screen panes stop painting, but never stop running.** A pane in a background workspace, or
+one sitting behind a maximized sibling, is `content-visibility: hidden` — the compositor skips it
+entirely — so feeding xterm would pay a full ANSI parse and DOM mutation for a surface nobody can
+see. Those panes buffer their output instead and replay it byte-identically when the pane returns
+(`src/renderer/src/paneVisibility.ts`). The agent process is untouched by this, and so is every
+signal derived from the raw pty stream: status, the bell, notifications, the missing-binary watch.
+
+Coming back on screen is the **only** thing that drains that buffer — there is deliberately no
+timer — so App flushes synchronously on workspace activation and on maximize changes, then forces a
+redraw once layout is restored (a write into a still-hidden subtree leaves the rendered rows stale).
+`smoke:offscreen` asserts both halves: held back while hidden, whole and in order on return.
+
 ## Isolation
 
 Every agent gets `git worktree add` on its own branch (`canvas/<id>`), checked out into a sibling
@@ -106,6 +118,7 @@ npm run smoke:ws           # workspace store
 npm run smoke:tabs         # tab behaviour
 npm run smoke:wspersist    # workspace persistence + legacy migration
 npm run smoke:agentfolder  # per-agent folders
+npm run smoke:offscreen    # off-screen panes buffer output, and replay it intact
 ```
 
 `scripts/diag/` holds manual diagnostic harnesses — they open a real window for eyeballing terminal

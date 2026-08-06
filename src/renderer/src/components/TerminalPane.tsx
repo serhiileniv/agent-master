@@ -18,6 +18,8 @@ import {
   type AgentStatus
 } from '../store'
 import { terminals, fits, flushes, quotePaths, pasteIntoTerminal } from '../terminalRegistry'
+import { isPaneOnScreen, OFFSCREEN_BUFFER_CAP } from '../paneVisibility'
+import { createPathExistsCache } from '../pathExistsCache'
 import { needsAttention, clampTail, stripAnsi } from '../attention'
 import { AGENT_INSTALL_URLS } from '../agentInstall'
 import { playCue, type Cue } from '../sound'
@@ -90,6 +92,17 @@ function buildMarkerCmd(sid: string | undefined, win: boolean, mark: string): st
 
 /** Floor for the maximized pane before the stage has reported its size. */
 const MIN_FOCUS_SIZE = 200
+
+/**
+ * Shared across every pane: xterm re-scans a row's links each time the pointer
+ * enters it, and each path-looking token on that row cost an IPC round-trip and
+ * an `fs.stat` — uncached, so sweeping the mouse over a build log restatted the
+ * same files for as long as it kept moving. Keyed by cwd, so two worktrees can
+ * never borrow each other's answer. See pathExistsCache.ts for the expiry rules.
+ */
+const pathExists = createPathExistsCache({
+  lookup: (cwd, token) => window.api.file.exists(cwd, token)
+})
 
 // Path-looking tokens in terminal output ("src/foo.ts:42", "..\lib\a.py") —
 // candidates are verified against the pane's cwd in the main process, so only
@@ -367,7 +380,7 @@ function TerminalPane({
           cands.push({ x: m.index, t: m[0] })
         }
         if (!cands.length || !cwd) return cb(undefined)
-        void Promise.all(cands.map((c) => window.api.file.exists(cwd, c.t))).then((oks) => {
+        void Promise.all(cands.map((c) => pathExists.exists(cwd, c.t))).then((oks) => {
           const links = cands
             .filter((_, i) => oks[i])
             .map((c) => ({
@@ -903,19 +916,27 @@ function TerminalPane({
         }
       }
 
-      // A pane in a hidden (background) workspace buffers its writes for up to
-      // 400ms: xterm's DOM renderer pays ANSI parse + DOM mutation per write
-      // even while visibility-hidden. Nothing is ever dropped — chunks
-      // concatenate in order and replay byte-identically on flush, so
-      // scrollback and TUI alternate-screen state are exact. A BEL in the raw
-      // chunk flushes immediately so onBell (attention, notification) stays
-      // prompt; App.tsx flushes on workspace activation via the registry.
+      // An OFF-SCREEN pane buffers its writes instead of feeding xterm: the DOM
+      // renderer pays a full ANSI parse + DOM mutation per write even into a
+      // subtree the compositor skips. Off-screen means a background workspace
+      // OR a pane sitting behind a maximized sibling — see paneVisibility.ts.
+      //
+      // There is deliberately no flush TIMER. The old one fired every 400ms,
+      // which meant a hidden pane re-rendered 2.5×/second into a surface nobody
+      // could see; nothing consumes that paint, because status detection, the
+      // bell and the missing-binary watch all read the RAW pty stream in
+      // onActivity, which this never touches. What remains are the only two
+      // reasons to write early: the size cap (so a runaway background process
+      // can't grow the heap without bound) and coming back on screen, which App
+      // drives through the flush registry.
+      //
+      // Nothing is ever dropped — chunks concatenate in order and replay
+      // byte-identically on flush, so scrollback and TUI alternate-screen state
+      // are exact. A BEL in the raw chunk still flushes immediately so onBell
+      // (attention, notification) stays prompt.
       let pendingWrites: string[] = []
       let pendingLen = 0
-      let pendingTimer: ReturnType<typeof setTimeout> | undefined
       const flushPending = (): void => {
-        clearTimeout(pendingTimer)
-        pendingTimer = undefined
         if (!pendingWrites.length) return
         const out = pendingWrites.join('')
         pendingWrites = []
@@ -940,12 +961,17 @@ function TerminalPane({
           if (booting) onBootData(s)
           else {
             const out = stripSeq(s)
-            const hidden = useStore.getState().activeWorkspaceId !== workspaceId
-            if (hidden && !d.includes('\x07')) {
+            const st = useStore.getState()
+            const onScreen = isPaneOnScreen({
+              activeWorkspaceId: st.activeWorkspaceId,
+              workspaceId,
+              focusedId: wsById(st, workspaceId)?.focusedId ?? null,
+              agentId: id
+            })
+            if (!onScreen && !d.includes('\x07')) {
               pendingWrites.push(out)
               pendingLen += out.length
-              if (pendingLen > 512 * 1024) flushPending()
-              else if (!pendingTimer) pendingTimer = setTimeout(flushPending, 400)
+              if (pendingLen > OFFSCREEN_BUFFER_CAP) flushPending()
             } else {
               flushPending()
               term.write(out)
@@ -1060,9 +1086,11 @@ function TerminalPane({
       if (ptyId) window.api.pty.kill(ptyId)
       ptyRef.current = null
       searchRef.current = null
-      // Run the registered flush so its pending timer can't fire into a
-      // disposed terminal (the data listener is already unsubscribed above).
-      flushes.get(id)?.()
+      // No flush on teardown. It existed to stop a pending 400ms timer firing
+      // into a disposed terminal; that timer is gone, and replaying buffered
+      // output into a pane that is being destroyed is pure waste — worse, an
+      // xterm write is asynchronous, so it would be parsing into a terminal
+      // that dispose() has already torn down.
       terminals.delete(id)
       fits.delete(id)
       flushes.delete(id)

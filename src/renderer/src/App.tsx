@@ -46,12 +46,17 @@ import {
   focusActiveTerminal,
   refitAgents,
   flushAgents,
+  refreshAgents,
   pasteIntoTerminal
 } from './terminalRegistry'
 
 export default function App(): JSX.Element {
   const liveWorkspaces = useStore((s) => s.liveWorkspaces)
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
+  // Which pane is maximized in the workspace on screen. Panes behind a maximize
+  // are hidden and buffering, so a change here has to flush and refit them —
+  // same code path as bringing a whole workspace forward.
+  const activeFocusedId = useStore((s) => activeWs(s)?.focusedId ?? null)
   const activeAgents = useActiveAgents()
   const setShells = useStore((s) => s.setShells)
   const setAgentClis = useStore((s) => s.setAgentClis)
@@ -136,22 +141,43 @@ export default function App(): JSX.Element {
   // laid out at all while hidden) and hand keyboard focus to its active pane, so
   // switching tabs lands you typing immediately.
   //
-  // TWO rAFs, not one: the layer is content-visibility:hidden while backgrounded,
-  // so removing that only restores the subtree's layout on the NEXT frame. A
-  // single rAF measured a pane that still had no box, the fit was skipped, and
-  // the terminal kept a stale size if the window had been resized meanwhile.
+  // Also runs when the MAXIMIZED pane changes, because releasing a maximize
+  // un-hides the siblings that were behind it — they are content-visibility:
+  // hidden too, and have been buffering their agents' output rather than
+  // painting it (see paneVisibility.ts). Flushing here is what replays that
+  // output, so dropping back to the grid shows every card fully current.
+  //
+  // The flush runs SYNCHRONOUSLY, outside the rAFs below. Replaying buffered
+  // output is a plain xterm write that needs no layout, and rAF is not a
+  // reliable "do this shortly": a window that is minimized, occluded or
+  // otherwise not producing frames never runs the callback, which would strand
+  // the buffer and freeze a background agent's output on screen with no error
+  // anywhere. That was survivable only while a 400ms drain timer existed to
+  // cover it; now that coming back on screen is the sole route from buffer to
+  // glass, it has to be unconditional. smoke:offscreen asserts exactly this.
+  //
+  // The REFIT does need layout, and gets TWO rAFs: a hidden layer is
+  // content-visibility:hidden, so removing that only restores the subtree's
+  // layout on the NEXT frame. A single rAF measured a pane that still had no
+  // box, the fit was skipped, and the terminal kept a stale size if the window
+  // had been resized meanwhile.
   useEffect(() => {
     if (!activeWorkspaceId) return
+    const ws = useStore.getState().liveWorkspaces.find((w) => w.id === activeWorkspaceId)
+    if (!ws) return
+    const ids = ws.agents.map((a) => a.id)
+    flushAgents(ids)
     let inner = 0
     const raf = requestAnimationFrame(() => {
       inner = requestAnimationFrame(() => {
-        const ws = useStore.getState().liveWorkspaces.find((w) => w.id === activeWorkspaceId)
-        if (!ws) return
-        const ids = ws.agents.map((a) => a.id)
-        // Background panes buffer their PTY writes (TerminalPane) — replay them
-        // before refit/focus so the workspace surfaces fully up to date.
-        flushAgents(ids)
         refitAgents(ids)
+        // The flush above landed in xterm's buffer while this subtree was still
+        // content-visibility:hidden, which leaves the RENDERED rows stale until
+        // something dirties them. Now that layout is back, force the redraw —
+        // otherwise a quiet agent's pane shows a stale screen until its next
+        // chunk of output arrives. refit alone is not enough: it only redraws
+        // when the size actually changed, and a tab switch resizes nothing.
+        refreshAgents(ids)
         focusActiveTerminal()
       })
     })
@@ -159,7 +185,7 @@ export default function App(): JSX.Element {
       cancelAnimationFrame(raf)
       cancelAnimationFrame(inner)
     }
-  }, [activeWorkspaceId])
+  }, [activeWorkspaceId, activeFocusedId])
 
   // Persistent update reminder. The main process reads the app repo's release
   // feed; we re-check on a delay after launch and then periodically, stashing

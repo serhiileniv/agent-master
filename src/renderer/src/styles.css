@@ -385,13 +385,42 @@ body.is-idle .home__hero::before {
   animation-play-state: paused;
 }
 
-/* The terminal cursor pauses only when the window is genuinely not visible.
+/* The terminal cursor.
    Each blink is nearly free on its own, but it keeps one live animation per
-   pane, which stops the compositor settling. Deliberately NOT paused on
-   blur/idle: `step-end` could strand the cursor mid-cycle on its dim frame,
-   and an unfocused-but-visible terminal should still look alive. */
-body.is-hidden .xterm-cursor-blink {
+   pane, and a machine woken twice a second is never truly idle — this is what
+   stops the compositor from settling on an app that is just sitting there.
+
+   Two fixes here. First, the selector: this rule used to name only
+   `.xterm-cursor-blink`, which xterm adds ONLY when its own `cursorBlink`
+   option is on — and it is off, because the blink is ours (see the
+   vec-cursor-blink rule further down). So the class never existed in the
+   markup and the pause never once took effect. It has to name the same
+   elements the animation does.
+
+   Second, the scope: pausing on blur/idle as well as hidden. The original
+   reasoning — that an unfocused-but-visible terminal should still look alive —
+   does not survive contact with the selector, which is `.xterm.focus`: with
+   the window in the background there is no focused terminal to look alive.
+   `opacity: 1 !important` is what makes this safe, and is load-bearing:
+   `step-end` would otherwise strand the cursor on its dim frame, and a
+   paused animation's frame beats a plain declaration. */
+body.is-hidden .vec-pane__term .xterm .xterm-cursor-block,
+body.is-hidden .vec-pane__term .xterm .xterm-cursor-bar,
+body.is-hidden .vec-pane__term .xterm .xterm-cursor-underline,
+body.is-hidden .vec-pane__term .xterm .xterm-cursor-outline,
+body.is-hidden .xterm-cursor-blink,
+body.is-blurred .vec-pane__term .xterm .xterm-cursor-block,
+body.is-blurred .vec-pane__term .xterm .xterm-cursor-bar,
+body.is-blurred .vec-pane__term .xterm .xterm-cursor-underline,
+body.is-blurred .vec-pane__term .xterm .xterm-cursor-outline,
+body.is-blurred .xterm-cursor-blink,
+body.is-idle .vec-pane__term .xterm .xterm-cursor-block,
+body.is-idle .vec-pane__term .xterm .xterm-cursor-bar,
+body.is-idle .vec-pane__term .xterm .xterm-cursor-underline,
+body.is-idle .vec-pane__term .xterm .xterm-cursor-outline,
+body.is-idle .xterm-cursor-blink {
   animation-play-state: paused;
+  opacity: 1 !important;
 }
 
 /* Functional signals (working pulse, attention breathe, dock badge) are "come
@@ -2005,6 +2034,18 @@ body.has-wallpaper .aurora {
      brighter and sibling output ghosts through its background. */
   opacity: 0.1;
   pointer-events: none;
+  /* …and at 10% behind a full-screen pane, nothing here can actually be read —
+     yet xterm was still parsing every chunk and mutating the DOM for all of
+     them, and the compositor was still drawing and blending each one. Maximize
+     is the mode people work in, so the most common state was also the one
+     paying for eight terminals nobody can see.
+     Same treatment as a background workspace layer: skip the subtree entirely.
+     The agents keep running untouched — TerminalPane buffers their output (see
+     paneVisibility.ts) and replays it byte-for-byte on the way back, and status,
+     the bell and notifications all read the raw pty stream, not this. The panes
+     keep their inline width/height so layout is unaffected, and App refits them
+     when the maximize is released. */
+  content-visibility: hidden;
 }
 
 /* Apple selection: crisp 1px accent ring, no glow. */
@@ -4798,22 +4839,61 @@ textarea,
 }
 
 /* 3. Unfocused panes recede rather than the focused one being marked. Dimming
-      and desaturating the others adds no ink to an already dense interface,
-      where a ring around the active pane would. The focused pane is simply the
-      one that has not receded. */
+      the others adds no ink to an already dense interface, where a ring around
+      the active pane would. The focused pane is simply the one that has not
+      receded.
+
+      The recede is opacity plus a neutral scrim, NOT `filter: saturate()`.
+      A filter forces the pane into its own render pass and runs a colour-matrix
+      shader over the whole card every time its content repaints — and a pane
+      full of streaming agent output repaints constantly. With eight cards
+      unselected that is eight full-surface shader passes per frame, forever,
+      which made it the app's dominant GPU cost once the aurora was retired.
+      A scrim is one flat quad the compositor blends during the normal draw:
+      no extra pass, no readback, and mixing toward the substrate desaturates
+      by the same mechanism a filter does. */
 .stage__panes .vec-pane:not(.is-selected):not(.is-focused) {
   opacity: 0.82;
-  filter: saturate(0.7);
-  transition:
-    opacity var(--dur-select) var(--ease-out),
-    filter var(--dur-select) var(--ease-out);
+  transition: opacity var(--dur-select) var(--ease-out);
 }
 
-/* 4. The whole window desaturates when it loses focus — the window-level
-      version of the same idea. windowFocus.ts stamps the class. */
-body.is-window-blurred .app {
-  filter: saturate(0.55);
-  transition: filter 200ms var(--ease-out);
+.stage__panes .vec-pane:not(.is-selected):not(.is-focused)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Over the whole card — header included — because that is what the filter it
+     replaces covered. The pane's own opacity makes it a stacking context, so
+     this only has to out-rank the header's z-index (5). */
+  z-index: 10;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--sub-2);
+  opacity: 0.22;
+}
+
+/* 4. The whole window recedes when it loses focus — the window-level version of
+      the same idea. windowFocus.ts stamps the class.
+
+      Same reasoning as above, and it mattered more here: this filter covered
+      the ENTIRE window and applied exactly when the app was in the background,
+      so every line an unattended agent printed paid a full-window colour-matrix
+      pass. The scrim is a single quad; at opacity 0 Chromium skips painting it
+      altogether, so a focused window pays nothing at all. */
+.app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Above every in-app layer (max authored z-index is 400) so the whole
+     interface recedes together, chrome and overlays included. */
+  z-index: 999;
+  pointer-events: none;
+  background: var(--sub-1);
+  opacity: 0;
+  transition: opacity 200ms var(--ease-out);
+}
+
+body.is-window-blurred .app::after {
+  opacity: 0.3;
 }
 
 /* Terminal ligatures off. Agent output is full of `--`, `==`, `->` and `!=`
