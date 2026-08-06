@@ -75,12 +75,28 @@ describe('detectShells spawn args', () => {
     const { detectShells } = await import('./shells')
 
     const shells = detectShells(allExist)
+    // -NoLogo, and nothing else: -l is a POSIX login flag with no meaning here.
+    // (The banner suppression itself is asserted below.)
     const ps = shells.find((s) => s.id === 'powershell')
-    expect(ps?.args).toEqual([])
+    expect(ps?.args).toEqual(['-NoLogo'])
     // Git Bash is the exception that already worked: it is a POSIX shell on
     // Windows and has always been spawned login+interactive.
     const gitBash = shells.find((s) => s.id === 'gitbash')
     if (gitBash) expect(gitBash.args).toEqual(['-l', '-i'])
+  })
+
+  it('starts both PowerShells without their startup banner', async () => {
+    setPlatform('win32')
+    const { detectShells } = await import('./shells')
+
+    // Without -NoLogo every pane opens on "Windows PowerShell / Copyright (C)
+    // Microsoft" plus the "Install the latest PowerShell" nag, above the agent.
+    const shells = detectShells(allExist)
+    for (const id of ['powershell', 'pwsh']) {
+      const s = shells.find((x) => x.id === id)
+      expect(s, `${id} should be detected`).toBeDefined()
+      expect(s?.args).toContain('-NoLogo')
+    }
   })
 
   it('still labels the default shell from $SHELL', async () => {

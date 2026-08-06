@@ -18,6 +18,14 @@ import {
   type AgentStatus
 } from '../store'
 import { terminals, fits, flushes, quotePaths, pasteIntoTerminal } from '../terminalRegistry'
+import {
+  BOOT_MARK,
+  AGENT_REVEAL_MS,
+  buildCd,
+  buildSentinelCmd,
+  cwdRevealDelay,
+  rawIndexAfterToken
+} from '../terminalBoot'
 import { needsAttention, clampTail, stripAnsi } from '../attention'
 import { AGENT_INSTALL_URLS } from '../agentInstall'
 import { playCue, type Cue } from '../sound'
@@ -28,65 +36,6 @@ import AgentBadge from './AgentBadge'
 // blinking cursor. Strip it so our own calm CSS blink is the single source.
 // eslint-disable-next-line no-control-regex
 const CURSOR_STYLE_SEQ = /\x1b\[[0-9]* q/g
-
-/** Shell command that pins the agent to its worktree dir, per shell. Returns
- *  null when there's no cwd to pin or the shell is unknown (spawn cwd stands). */
-function buildCd(sid: string | undefined, win: boolean, cwd: string): string | null {
-  if (!cwd) return null
-  if (sid === 'powershell' || sid === 'pwsh' || (win && !sid))
-    return `Set-Location -LiteralPath '${cwd.replace(/'/g, "''")}'`
-  if (sid === 'cmd') return `cd /d "${cwd}"`
-  if (sid === 'gitbash') {
-    const posix = cwd.replace(/\\/g, '/')
-    return `cd '${posix.replace(/'/g, "'\\''")}'`
-  }
-  if (!win) return `cd '${cwd.replace(/'/g, "'\\''")}'`
-  return null
-}
-
-/** Find `token` in `raw`, tolerating ANSI/control sequences interspersed between
- *  its characters (ConPTY + PSReadLine render output with cursor/SGR codes mixed
- *  in, so a plain indexOf on the raw stream misses it). Returns the raw index
- *  just AFTER the token's last character, or -1 if not (yet) present. */
-function rawIndexAfterToken(raw: string, token: string): number {
-  let clean = ''
-  const map: number[] = [] // clean char index -> raw index
-  for (let i = 0; i < raw.length; ) {
-    if (raw[i] === '\x1b') {
-      i++
-      if (raw[i] === '[') {
-        i++
-        while (i < raw.length && (raw.charCodeAt(i) < 0x40 || raw.charCodeAt(i) > 0x7e)) i++
-        i++ // the final byte
-      } else if (raw[i] === ']') {
-        i++
-        while (i < raw.length && raw[i] !== '\x07' && !(raw[i] === '\x1b' && raw[i + 1] === '\\')) i++
-        i += raw[i] === '\x1b' ? 2 : 1
-      } else {
-        i++
-      }
-      continue
-    }
-    clean += raw[i]
-    map.push(i)
-    i++
-  }
-  const idx = clean.indexOf(token)
-  if (idx === -1) return -1
-  return map[idx + token.length - 1] + 1
-}
-
-/** A command that prints `mark` to stdout so it lands (ANSI-strippable) in the
- *  output only — the echoed command splits the token across a concat/two vars, so
- *  the quiet-boot watcher can match the whole token without false-firing on echo. */
-function buildMarkerCmd(sid: string | undefined, win: boolean, mark: string): string {
-  const a = mark.slice(0, 3)
-  const b = mark.slice(3)
-  if (sid === 'powershell' || sid === 'pwsh' || (win && !sid))
-    return `Write-Host -NoNewline ('${a}'+'${b}')`
-  if (sid === 'cmd') return `set _m1=${a}&&set _m2=${b}&&<nul set /p=%_m1%%_m2%`
-  return `printf %s '${a}''${b}'`
-}
 
 /** Floor for the maximized pane before the stage has reported its size. */
 const MIN_FOCUS_SIZE = 200
@@ -836,16 +785,17 @@ function TerminalPane({
       // Hold the VISIBLE render back until the shell signals the cwd-pin is done
       // (a printed sentinel) and the agent takes over the alternate screen, then
       // reveal a clean start. Output still reaches onActivity (status + the
-      // missing-bin watch) — only rendering waits. A hard timeout always reveals,
-      // so an unexpected shell can never leave the pane blank.
+      // missing-bin watch) — only rendering waits. A timeout always reveals in
+      // the end, so an unexpected shell can never leave the pane blank; and the
+      // sentinel clears the screen shell-side, so that reveal is clean too.
       const sid = shell?.id
       const winPlat = window.api.platform === 'win32'
       const cdCmd = buildCd(sid, winPlat, wt.cwd)
       const hideAgent = !!agent.agentId && !!agent.startupCommand
-      const MARK = 'M0nadRdy' // contiguous only in the sentinel's OUTPUT, not its echo
       let booting = !!cdCmd || hideAgent
       let bootPhase: 'cwd' | 'agent' = cdCmd ? 'cwd' : 'agent'
       let bootAccum = ''
+      let bootClock = 0
       // Assigned, not declared — the holder lives at effect scope so the unmount
       // cleanup can clear it (it was the one timer the cleanup missed).
       bootTimer = 0
@@ -865,23 +815,30 @@ function TerminalPane({
         term.reset()
         if (tail) term.write(stripSeq(tail))
       }
-      const armBootTimeout = (): void => {
+      // Safety net: if the sentinel / alt-screen never shows (an exotic shell, a
+      // non-TUI agent), reveal what we have and make sure the agent launched.
+      // `restart` starts a fresh clock for a new phase; otherwise the cwd phase
+      // re-arms off the same clock as each chunk lands, so the wait follows the
+      // shell's silence instead of a fixed budget that a slow start blows past.
+      const armBootTimeout = (restart = false): void => {
         window.clearTimeout(bootTimer)
-        // Safety net: if the sentinel / alt-screen never shows (an exotic shell,
-        // a non-TUI agent), reveal what we have and make sure the agent launched.
+        if (restart || !bootClock) bootClock = Date.now()
+        const wait =
+          bootPhase === 'cwd' ? cwdRevealDelay(Date.now() - bootClock) : AGENT_REVEAL_MS
         bootTimer = window.setTimeout(() => {
           if (disposed) return
           const tail = bootAccum
           bootAccum = ''
           endBoot(tail)
           sendStartup()
-        }, 2500)
+        }, wait)
       }
       const onBootData = (s: string): void => {
         if (disposed) return
         bootAccum += s
         if (bootPhase === 'cwd') {
-          const j = rawIndexAfterToken(bootAccum, MARK)
+          armBootTimeout()
+          const j = rawIndexAfterToken(bootAccum, BOOT_MARK)
           if (j === -1) return
           const tail = bootAccum.slice(j)
           bootAccum = ''
@@ -891,7 +848,7 @@ function TerminalPane({
             bootPhase = 'agent'
             term.reset()
             sendStartup()
-            armBootTimeout()
+            armBootTimeout(true)
           } else {
             endBoot(tail) // clean prompt; a non-agent command (if any) shows normally
             sendStartup()
@@ -1011,9 +968,10 @@ function TerminalPane({
         sendStartup()
       } else if (cdCmd) {
         // Pin the cwd, then print the sentinel so we know when its echo/output is
-        // done and can reveal a clean screen (see onBootData).
+        // done and can reveal a clean screen (see onBootData). The sentinel also
+        // clears the screen shell-side, so even a missed reveal lands clean.
         window.api.pty.write(pid, cdCmd + '\r')
-        window.api.pty.write(pid, buildMarkerCmd(sid, winPlat, MARK) + '\r')
+        window.api.pty.write(pid, buildSentinelCmd(sid, winPlat, BOOT_MARK) + '\r')
         armBootTimeout()
       } else {
         // No cwd to pin but a known agent to hide: launch it straight away,

@@ -106,6 +106,8 @@ npm run smoke:ws           # workspace store
 npm run smoke:tabs         # tab behaviour
 npm run smoke:wspersist    # workspace persistence + legacy migration
 npm run smoke:agentfolder  # per-agent folders
+npm run smoke:envpath      # PATH resolution never hangs shells:list
+npm run smoke:quietboot    # a pane opens on a prompt, not the PowerShell banner
 ```
 
 `scripts/diag/` holds manual diagnostic harnesses — they open a real window for eyeballing terminal

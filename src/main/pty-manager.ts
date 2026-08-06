@@ -33,7 +33,10 @@ export class PtyManager {
     // This branch bypasses shells.ts (it fires when a workspace saved on another
     // machine names a shellId we don't have), so it needs the login flag too —
     // otherwise those panes silently lose ~/.zprofile and every PATH it sets.
-    const args = opts.args ?? (isWin || opts.shell ? [] : ['-l'])
+    // The Windows fallback is powershell.exe, so it needs -NoLogo for the same
+    // reason shells.ts does: otherwise the pane opens on the banner + upgrade nag.
+    const args =
+      opts.args ?? (isWin ? (opts.shell ? [] : ['-NoLogo']) : opts.shell ? [] : ['-l'])
 
     let proc: pty.IPty
     try {
