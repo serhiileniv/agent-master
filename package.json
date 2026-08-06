@@ -28,7 +28,8 @@
     "smoke:wspersist": "electron scripts/smoke/wspersist-smoke.cjs",
     "smoke:agentfolder": "electron scripts/smoke/agentfolder-smoke.cjs",
     "smoke:offscreen": "electron scripts/smoke/offscreen-smoke.cjs",
-    "smoke:envpath": "electron scripts/smoke/envpath-smoke.cjs"
+    "smoke:envpath": "electron scripts/smoke/envpath-smoke.cjs",
+    "smoke:quietboot": "electron scripts/smoke/quietboot-smoke.cjs"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

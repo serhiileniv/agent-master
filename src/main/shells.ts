@@ -91,6 +91,13 @@ export function detectAgents(): AgentCli[] {
 export const POSIX_LOGIN_FLAG = '-l'
 
 /**
+ * Startup-banner suppressor for both PowerShells. Windows PowerShell 5.1 prints
+ * a copyright banner and an "Install the latest PowerShell" nag before the first
+ * prompt; pwsh prints its own. Neither belongs in an agent pane.
+ */
+export const PS_NO_BANNER_FLAG = '-NoLogo'
+
+/**
  * Detect the shells/terminals actually installed on this machine.
  *
  * `exists` is injected so tests can exercise the POSIX branch from a Windows
@@ -103,11 +110,14 @@ export function detectShells(exists: (p: string) => boolean = existsSync): Shell
   if (process.platform === 'win32') {
     const sysRoot = process.env.SystemRoot || 'C:\\Windows'
     const psPath = join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    // -NoLogo: without it every pane opens on the "Windows PowerShell / Copyright
+    // (C) Microsoft" banner plus the "Install the latest PowerShell" nag, which
+    // is pure noise above an agent.
     shells.push({
       id: 'powershell',
       label: 'PowerShell',
       command: exists(psPath) ? psPath : 'powershell.exe',
-      args: []
+      args: [PS_NO_BANNER_FLAG]
     })
 
     const pwsh =
@@ -115,7 +125,8 @@ export function detectShells(exists: (p: string) => boolean = existsSync): Shell
       (exists('C:\\Program Files\\PowerShell\\7\\pwsh.exe')
         ? 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
         : null)
-    if (pwsh) shells.push({ id: 'pwsh', label: 'PowerShell 7', command: pwsh, args: [] })
+    if (pwsh)
+      shells.push({ id: 'pwsh', label: 'PowerShell 7', command: pwsh, args: [PS_NO_BANNER_FLAG] })
 
     shells.push({
       id: 'cmd',

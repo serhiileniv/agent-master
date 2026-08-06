@@ -12,15 +12,25 @@ crossings go through a narrow, explicitly enumerated `contextBridge` API.
 ```
 src/
   main/        Electron main process
-    index.ts       window + production CSP
-    ipc.ts         IPC handlers (pty / project / git / worktree / diff-merge / update)
-    pty-manager.ts node-pty session manager
-    git.ts         git + worktree + diff/merge
-    update.ts      newer-release check against the release feed
+    index.ts          window + production CSP
+    ipc.ts            IPC handlers (pty / project / git / worktree / diff-merge / update)
+    pty-manager.ts    node-pty session manager
+    git.ts            git + worktree + diff/merge
+    scoped-files.ts   file panel reads/writes, confined to a scope root
+    workspace-store.ts  atomic, serialized read/write of workspaces.json
+    update.ts         newer-release check against the release feed
   preload/     contextBridge API (window.api.{pty,project,git,worktree,update,platform})
   renderer/    React + Zustand; xterm.js terminals on an auto-tiling stage
+    agentStatus.ts    what a pane's output means (working / done / attention)
+    missingBinary.ts  recognising "the agent CLI isn't installed"
+    terminalBoot.ts   quiet boot — hold the pane blank until the shell is ready
     components/  Stage, TerminalPane, Rail, CommandPalette, DiffPanel, Settings
 ```
+
+Handlers in `ipc.ts` are deliberately thin. Where a channel carries real
+decisions — the file panel's containment guard, the workspace file's atomicity —
+those live in their own module so they can be unit-tested without booting
+Electron, and the handler just calls them.
 
 ## Terminals
 
@@ -64,6 +74,11 @@ important safety property in the app; treat changes near it carefully and cover 
 tearing down worktrees, producing diffs against the base branch, and merging or discarding a
 branch. The renderer never shells out to git — it asks for a result.
 
+Every git process the module starts goes through one runner, and that runner is swappable
+(`setGitRunner`). Production always uses the real one; tests substitute a scripted git so the
+destructive paths — `applyAgentFiles` and its rollback, orphan removal, merge conflict handling —
+can be exercised without a repository on disk. Nothing in the app calls `setGitRunner`.
+
 `smoke:p3` covers the path that actually lands work on a user's base branch. Any change to merge
 behaviour should run it.
 
@@ -102,7 +117,10 @@ Two layers, both run in CI on every push (`.github/workflows/ci.yml`). Packaging
 ```bash
 npm run typecheck
 npm run lint        # bug-focused rules (react-hooks + a small correctness set)
-npm run test        # unit tests: tiling math, shell quoting, git path decoding
+npm run test        # unit tests: tiling math, shell quoting, git path decoding,
+                    # the git worktree/merge/apply lifecycle against a scripted git,
+                    # the file-panel containment guard, workspaces.json atomicity,
+                    # the agent status/attention heuristics, and the quiet boot
 ```
 
 **Integration smoke tests** — these drive the real built bundles and IPC under a headless Electron,
@@ -119,6 +137,8 @@ npm run smoke:tabs         # tab behaviour
 npm run smoke:wspersist    # workspace persistence + legacy migration
 npm run smoke:agentfolder  # per-agent folders
 npm run smoke:offscreen    # off-screen panes buffer output, and replay it intact
+npm run smoke:envpath      # PATH resolution never hangs shells:list
+npm run smoke:quietboot    # a pane opens on a prompt, not the PowerShell banner
 ```
 
 `scripts/diag/` holds manual diagnostic harnesses — they open a real window for eyeballing terminal
