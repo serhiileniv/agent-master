@@ -63,3 +63,6 @@ jobs:
       # A hang there opens the app to a stage of permanently dead panes, so
       # this smoke's timeout IS the assertion.
       - run: node scripts/smoke/run-smoke.cjs envpath
+      # A pane must open on a prompt, not on the PowerShell banner + upgrade nag.
+      # Windows-only assertion, and this runner is windows-latest.
+      - run: node scripts/smoke/run-smoke.cjs quietboot
