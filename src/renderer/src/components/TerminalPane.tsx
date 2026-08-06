@@ -18,24 +18,12 @@ import {
   type AgentStatus
 } from '../store'
 import { terminals, fits, flushes, quotePaths, pasteIntoTerminal } from '../terminalRegistry'
-import {
-  BOOT_MARK,
-  AGENT_REVEAL_MS,
-  buildCd,
-  buildSentinelCmd,
-  cwdRevealDelay,
-  rawIndexAfterToken
-} from '../terminalBoot'
+import { createQuietBoot, stripCursorStyle, type QuietBoot } from '../terminalBoot'
 import { createAgentStatusTracker } from '../agentStatus'
 import { AGENT_INSTALL_URLS } from '../agentInstall'
 import { playCue, type Cue } from '../sound'
 import { IconClose, IconWide, IconNarrow } from './Icons'
 import AgentBadge from './AgentBadge'
-
-// DECSCUSR (CSI Ps SP q) — shells like PSReadLine use it to force a (fast)
-// blinking cursor. Strip it so our own calm CSS blink is the single source.
-// eslint-disable-next-line no-control-regex
-const CURSOR_STYLE_SEQ = /\x1b\[[0-9]* q/g
 
 /** Floor for the maximized pane before the stage has reported its size. */
 const MIN_FOCUS_SIZE = 200
@@ -512,8 +500,9 @@ function TerminalPane({
     const shell = state.shells.find((sh) => sh.id === agent.shellId)
     let ptyId: string | null = null
     let disposed = false
-    /** Quiet-boot reveal timer (see the boot state machine below). */
-    let bootTimer = 0
+    // Assigned once the PTY exists, but held at effect scope so the unmount
+    // cleanup can stop its reveal timer (that was the one timer cleanup missed).
+    let boot: QuietBoot | null = null
     let lastNotify = 0
     const unsubs: Array<() => void> = []
 
@@ -658,19 +647,7 @@ function TerminalPane({
       // missing-bin watch) — only rendering waits. A timeout always reveals in
       // the end, so an unexpected shell can never leave the pane blank; and the
       // sentinel clears the screen shell-side, so that reveal is clean too.
-      const sid = shell?.id
-      const winPlat = window.api.platform === 'win32'
-      const cdCmd = buildCd(sid, winPlat, wt.cwd)
-      const hideAgent = !!agent.agentId && !!agent.startupCommand
-      let booting = !!cdCmd || hideAgent
-      let bootPhase: 'cwd' | 'agent' = cdCmd ? 'cwd' : 'agent'
-      let bootAccum = ''
-      let bootClock = 0
-      // Assigned, not declared — the holder lives at effect scope so the unmount
-      // cleanup can clear it (it was the one timer the cleanup missed).
-      bootTimer = 0
       let startupSent = false
-      const stripSeq = (x: string): string => x.replace(CURSOR_STYLE_SEQ, '')
       const sendStartup = (): void => {
         if (startupSent || !agent.startupCommand) return
         startupSent = true
@@ -678,57 +655,21 @@ function TerminalPane({
         tracker.armMissingBinaryWatch()
         window.api.pty.write(pid, agent.startupCommand + '\r')
       }
-      const endBoot = (tail: string): void => {
-        booting = false
-        window.clearTimeout(bootTimer)
-        if (disposed) return
-        term.reset()
-        if (tail) term.write(stripSeq(tail))
-      }
-      // Safety net: if the sentinel / alt-screen never shows (an exotic shell, a
-      // non-TUI agent), reveal what we have and make sure the agent launched.
-      // `restart` starts a fresh clock for a new phase; otherwise the cwd phase
-      // re-arms off the same clock as each chunk lands, so the wait follows the
-      // shell's silence instead of a fixed budget that a slow start blows past.
-      const armBootTimeout = (restart = false): void => {
-        window.clearTimeout(bootTimer)
-        if (restart || !bootClock) bootClock = Date.now()
-        const wait =
-          bootPhase === 'cwd' ? cwdRevealDelay(Date.now() - bootClock) : AGENT_REVEAL_MS
-        bootTimer = window.setTimeout(() => {
-          if (disposed) return
-          const tail = bootAccum
-          bootAccum = ''
-          endBoot(tail)
-          sendStartup()
-        }, wait)
-      }
-      const onBootData = (s: string): void => {
-        if (disposed) return
-        bootAccum += s
-        if (bootPhase === 'cwd') {
-          armBootTimeout()
-          const j = rawIndexAfterToken(bootAccum, BOOT_MARK)
-          if (j === -1) return
-          const tail = bootAccum.slice(j)
-          bootAccum = ''
-          if (hideAgent) {
-            // cwd pinned & hidden; launch the agent, still hidden, and reveal
-            // when its TUI takes over the alternate screen.
-            bootPhase = 'agent'
-            term.reset()
-            sendStartup()
-            armBootTimeout(true)
-          } else {
-            endBoot(tail) // clean prompt; a non-agent command (if any) shows normally
-            sendStartup()
-          }
-        } else {
-          // Agent phase: reveal the moment the TUI enters the alternate screen.
-          const i = bootAccum.indexOf('\x1b[?1049h')
-          if (i !== -1) endBoot(bootAccum.slice(i))
+      const quietBoot = createQuietBoot(
+        {
+          shellId: shell?.id,
+          win: window.api.platform === 'win32',
+          cwd: wt.cwd,
+          hideAgent: !!agent.agentId && !!agent.startupCommand
+        },
+        {
+          resetScreen: () => term.reset(),
+          write: (s) => term.write(s),
+          sendStartup,
+          writeToShell: (line) => window.api.pty.write(pid, line + '\r')
         }
-      }
+      )
+      boot = quietBoot
 
       // A pane in a hidden (background) workspace buffers its writes for up to
       // 400ms: xterm's DOM renderer pays ANSI parse + DOM mutation per write
@@ -764,9 +705,9 @@ function TerminalPane({
           s = s.slice(0, s.length - partial[0].length)
         }
         if (s) {
-          if (booting) onBootData(s)
+          if (quietBoot.isBooting()) quietBoot.onData(s)
           else {
-            const out = stripSeq(s)
+            const out = stripCursorStyle(s)
             const hidden = useStore.getState().activeWorkspaceId !== workspaceId
             if (hidden && !d.includes('\x07')) {
               pendingWrites.push(out)
@@ -820,24 +761,8 @@ function TerminalPane({
         }
       })
 
-      // Kick off the (quiet) bootstrap. With nothing to hide it behaves exactly
-      // as before: pin the cwd, then run the startup command.
-      if (!booting) {
-        if (cdCmd) window.api.pty.write(pid, cdCmd + '\r')
-        sendStartup()
-      } else if (cdCmd) {
-        // Pin the cwd, then print the sentinel so we know when its echo/output is
-        // done and can reveal a clean screen (see onBootData). The sentinel also
-        // clears the screen shell-side, so even a missed reveal lands clean.
-        window.api.pty.write(pid, cdCmd + '\r')
-        window.api.pty.write(pid, buildSentinelCmd(sid, winPlat, BOOT_MARK) + '\r')
-        armBootTimeout()
-      } else {
-        // No cwd to pin but a known agent to hide: launch it straight away,
-        // hidden, and reveal when its TUI takes over the screen.
-        sendStartup()
-        armBootTimeout()
-      }
+      // Subscriptions are in place, so nothing the shell replies with is missed.
+      quietBoot.begin()
     }
     void start().catch((e) => {
       if (disposed) return
@@ -863,8 +788,8 @@ function TerminalPane({
     return () => {
       disposed = true
       tracker.dispose()
+      boot?.dispose()
       clearTimeout(selTimer)
-      window.clearTimeout(bootTimer)
       themeObserver.disconnect()
       host.removeEventListener('mousedown', onTermMouseDown, true)
       window.removeEventListener('mouseup', onWinMouseUp, true)

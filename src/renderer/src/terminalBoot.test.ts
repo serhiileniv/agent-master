@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
+  AGENT_REVEAL_MS,
   BOOT_MARK,
   BOOT_MAX_MS,
   BOOT_MIN_MS,
@@ -7,7 +8,9 @@ import {
   buildCd,
   buildSentinelCmd,
   cwdRevealDelay,
-  rawIndexAfterToken
+  rawIndexAfterToken,
+  createQuietBoot,
+  type QuietBootSink
 } from './terminalBoot'
 
 describe('buildCd', () => {
@@ -94,5 +97,173 @@ describe('rawIndexAfterToken', () => {
 
   it('reports absence until the token is complete', () => {
     expect(rawIndexAfterToken('M0nadR', BOOT_MARK)).toBe(-1)
+  })
+})
+
+// --- the phase machine ------------------------------------------------------
+// Shipped without coverage of its own: the strings and the math were tested,
+// the sequencing that uses them was not. These drive it with fake timers.
+
+interface Recorder {
+  sink: QuietBootSink
+  screen: string
+  resets: number
+  shell: string[]
+  startups: number
+}
+
+function recorder(): Recorder {
+  const r: Recorder = {
+    screen: '',
+    resets: 0,
+    shell: [],
+    startups: 0,
+    sink: {
+      resetScreen: () => {
+        r.resets++
+        r.screen = ''
+      },
+      write: (s) => {
+        r.screen += s
+      },
+      sendStartup: () => {
+        r.startups++
+      },
+      writeToShell: (line) => void r.shell.push(line)
+    }
+  }
+  return r
+}
+
+const POSIX = { shellId: 'zsh', win: false, cwd: '/wt', hideAgent: false }
+
+/** The sentinel as it lands in OUTPUT — contiguous, unlike its echo. */
+const MARK_OUT = BOOT_MARK
+
+describe('createQuietBoot', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('holds the pane back until the sentinel arrives, then reveals what follows', () => {
+    const r = recorder()
+    const boot = createQuietBoot(POSIX, r.sink)
+    boot.begin()
+
+    expect(boot.isBooting()).toBe(true)
+    expect(r.shell).toEqual([buildCd('zsh', false, '/wt'), buildSentinelCmd('zsh', false, BOOT_MARK)])
+
+    // The banner and both echoes arrive first — none of it may reach the pane.
+    boot.onData('Welcome to zsh\r\n$ cd /wt\r\n$ printf ...\r\n')
+    expect(r.screen).toBe('')
+    expect(boot.isBooting()).toBe(true)
+
+    boot.onData(`${MARK_OUT}\r\n$ `)
+    expect(boot.isBooting()).toBe(false)
+    expect(r.screen).toBe('\r\n$ ')
+    expect(r.startups).toBe(1)
+  })
+
+  it('reveals on the timeout when the sentinel never comes', () => {
+    const r = recorder()
+    const boot = createQuietBoot(POSIX, r.sink)
+    boot.begin()
+    boot.onData('an exotic shell that never prints it')
+
+    vi.advanceTimersByTime(BOOT_MAX_MS + 1000)
+    expect(boot.isBooting()).toBe(false)
+    // Whatever we held is shown rather than lost.
+    expect(r.screen).toContain('exotic shell')
+    expect(r.startups).toBe(1)
+  })
+
+  // The regression the elapsed-aware delay exists for: a cold PowerShell that
+  // says nothing for seconds used to blow a fixed budget and dump the banner.
+  it('waits out a silent cold start instead of dumping the boot', () => {
+    const r = recorder()
+    const boot = createQuietBoot(POSIX, r.sink)
+    boot.begin()
+
+    vi.advanceTimersByTime(BOOT_MIN_MS - 500)
+    expect(boot.isBooting()).toBe(true)
+
+    boot.onData(`banner${MARK_OUT}ready`)
+    expect(boot.isBooting()).toBe(false)
+    expect(r.screen).toBe('ready')
+  })
+
+  it('hides the agent through a second phase, revealing on the alternate screen', () => {
+    const r = recorder()
+    const boot = createQuietBoot({ ...POSIX, hideAgent: true }, r.sink)
+    boot.begin()
+
+    boot.onData(`noise${MARK_OUT}`)
+    // cwd pinned: screen wiped, agent launched, still hidden.
+    expect(boot.isBooting()).toBe(true)
+    expect(r.startups).toBe(1)
+    expect(r.resets).toBe(1)
+
+    boot.onData('agent warming up')
+    expect(r.screen).toBe('')
+
+    boot.onData('\x1b[?1049hTUI PAINTS')
+    expect(boot.isBooting()).toBe(false)
+    expect(r.screen).toBe('\x1b[?1049hTUI PAINTS')
+  })
+
+  it('reveals the hidden agent on the timeout when it has no TUI', () => {
+    const r = recorder()
+    const boot = createQuietBoot({ ...POSIX, hideAgent: true }, r.sink)
+    boot.begin()
+    boot.onData(`x${MARK_OUT}`)
+    boot.onData('plain text agent, no alternate screen')
+
+    vi.advanceTimersByTime(AGENT_REVEAL_MS + 100)
+    expect(boot.isBooting()).toBe(false)
+    expect(r.screen).toContain('plain text agent')
+  })
+
+  it('skips the cwd phase entirely when there is nothing to pin', () => {
+    const r = recorder()
+    const boot = createQuietBoot({ ...POSIX, cwd: '', hideAgent: true }, r.sink)
+    boot.begin()
+
+    expect(r.shell).toEqual([]) // no pin, no sentinel
+    expect(r.startups).toBe(1)
+    expect(boot.isBooting()).toBe(true)
+
+    boot.onData('\x1b[?1049h')
+    expect(boot.isBooting()).toBe(false)
+  })
+
+  it('does not hold anything back when there is neither a cwd nor an agent', () => {
+    const r = recorder()
+    const boot = createQuietBoot({ ...POSIX, cwd: '', hideAgent: false }, r.sink)
+    boot.begin()
+    expect(boot.isBooting()).toBe(false)
+    expect(r.startups).toBe(1)
+  })
+
+  it('strips the cursor-style sequence out of what it reveals', () => {
+    const r = recorder()
+    const boot = createQuietBoot(POSIX, r.sink)
+    boot.begin()
+    boot.onData(`${MARK_OUT}\x1b[5 qprompt`)
+    expect(r.screen).toBe('prompt')
+  })
+
+  it('cannot write into a disposed pane', () => {
+    const r = recorder()
+    const boot = createQuietBoot(POSIX, r.sink)
+    boot.begin()
+    boot.dispose()
+
+    boot.onData(`${MARK_OUT}late`)
+    vi.advanceTimersByTime(BOOT_MAX_MS * 2)
+    expect(r.screen).toBe('')
+    expect(r.resets).toBe(0)
   })
 })
