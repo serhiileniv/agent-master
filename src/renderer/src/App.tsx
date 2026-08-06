@@ -35,8 +35,13 @@ function OverlayLoading(): JSX.Element {
     </div>
   )
 }
-import { useStore, toPersisted, activeWs, useActiveAgents, NEEDS_ATTENTION } from './store'
-import { restoreWorkspaces, saveWorkspaces, closeWorkspaceById } from './openProject'
+import { useStore, activeWs, useActiveAgents, NEEDS_ATTENTION } from './store'
+import {
+  restoreWorkspaces,
+  saveWorkspaces,
+  closeWorkspaceById,
+  persistedSignature
+} from './openProject'
 import { installPowerIdle } from './powerIdle'
 import { initWindowFocus } from './windowFocus'
 import { applyAccent } from './accent'
@@ -550,53 +555,13 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Autosave every live workspace's stage, debounced. Only the persisted fields
-  // gate it (a flat join per workspace — no JSON pass on every status flip), so
-  // runtime churn (status/pty id) doesn't trigger disk writes. Background
-  // workspaces autosave too, so their edits survive a close/restart.
-  const persistedByWs = useMemo(
-    () =>
-      liveWorkspaces.map((w) => ({
-        id: w.id,
-        name: w.name,
-        path: w.defaultPath,
-        layoutMode: w.layoutMode,
-        persisted: toPersisted(w.agents)
-      })),
-    [liveWorkspaces]
-  )
-  // Signature of everything that reaches disk. Identity, name and the active tab
-  // are in here now (they're persisted too), but nothing runtime — status churn
-  // from a streaming agent must never trigger a write.
-  const persistedKey = useMemo(
-    () =>
-      activeWorkspaceId +
-      '@@' +
-      persistedByWs
-        .map(
-          (w) =>
-            w.id +
-            '#' +
-            w.name +
-            '#' +
-            w.path +
-            '#' +
-            w.layoutMode +
-            '#' +
-            w.persisted
-              .map(
-                (p) =>
-                  // Must cover EVERY field toPersisted writes, or that field only
-                  // reaches disk when some other change happens to bump the key.
-                  // termTheme (pane context menu) and projectPath (per-agent
-                  // folder) were both missing and so silently didn't persist.
-                  `${p.id}:${p.x},${p.y},${p.w},${p.h}:${p.isolation}:${p.shellId ?? ''}:${p.label}:${p.startupCommand ?? ''}:${p.agentId ?? ''}:${p.agentLabel ?? ''}:${p.wide ? 1 : 0}:${p.termTheme ?? ''}:${p.projectPath ?? ''}`
-              )
-              .join('|')
-        )
-        .join('~~'),
-    [persistedByWs, activeWorkspaceId]
-  )
+  // Autosave every live workspace's stage, debounced. The signature is derived
+  // from the snapshot that actually gets written, so there is no list of fields
+  // — or of store slices — maintained here to fall out of step with it. Runtime
+  // churn (status/pty id) is stripped before it reaches the signature, so a
+  // streaming agent never triggers a write. Background workspaces autosave too,
+  // so their edits survive a close/restart.
+  const persistedKey = useStore(persistedSignature)
   useEffect(() => {
     window.clearTimeout(saveTimer.current)
     // One write for the whole tab set — saveWorkspaces reads the store itself,
