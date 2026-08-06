@@ -18,24 +18,12 @@ import {
   type AgentStatus
 } from '../store'
 import { terminals, fits, flushes, quotePaths, pasteIntoTerminal } from '../terminalRegistry'
-import {
-  BOOT_MARK,
-  AGENT_REVEAL_MS,
-  buildCd,
-  buildSentinelCmd,
-  cwdRevealDelay,
-  rawIndexAfterToken
-} from '../terminalBoot'
-import { needsAttention, clampTail, stripAnsi } from '../attention'
+import { createQuietBoot, stripCursorStyle, type QuietBoot } from '../terminalBoot'
+import { createAgentStatusTracker } from '../agentStatus'
 import { AGENT_INSTALL_URLS } from '../agentInstall'
 import { playCue, type Cue } from '../sound'
 import { IconClose, IconWide, IconNarrow } from './Icons'
 import AgentBadge from './AgentBadge'
-
-// DECSCUSR (CSI Ps SP q) — shells like PSReadLine use it to force a (fast)
-// blinking cursor. Strip it so our own calm CSS blink is the single source.
-// eslint-disable-next-line no-control-regex
-const CURSOR_STYLE_SEQ = /\x1b\[[0-9]* q/g
 
 /** Floor for the maximized pane before the stage has reported its size. */
 const MIN_FOCUS_SIZE = 200
@@ -512,40 +500,11 @@ function TerminalPane({
     const shell = state.shells.find((sh) => sh.id === agent.shellId)
     let ptyId: string | null = null
     let disposed = false
-    let tail = ''
-    let working = false
-    let workingSince = 0
-    let bellRang = false
-    // Set once output has streamed with NO ≥800ms gap for longer than the ceiling
-    // below — i.e. a live/steady process (dev server, log tail, htop, a spinner
-    // left running), not a task that will settle. Cleared the moment a real gap
-    // occurs (evaluateIdle), so a later burst is tracked from scratch.
-    let steady = false
-    let idleTimer: ReturnType<typeof setTimeout> | undefined
-    /** Quiet-boot reveal timer (see the boot state machine below). */
-    let bootTimer = 0
-    // True once any burst has run long enough to count as a task. Survives the
-    // short output gaps inside an agent run, so the eventual real finish still
-    // notifies even when the final burst itself was brief.
-    let taskActive = false
-    let doneConfirmTimer: ReturnType<typeof setTimeout> | undefined
+    // Assigned once the PTY exists, but held at effect scope so the unmount
+    // cleanup can stop its reveal timer (that was the one timer cleanup missed).
+    let boot: QuietBoot | null = null
     let lastNotify = 0
     const unsubs: Array<() => void> = []
-    // A working burst shorter than this reads as routine shell echo (ls, cd…),
-    // not a task — don't notify on those settling back to idle.
-    const DONE_AFTER_MS = 8000
-    // How long a settle must stay silent before "done" is believed. Agent CLIs
-    // routinely pause output for several seconds mid-task (API thinking waits,
-    // sub-agent handoffs) — the 800ms settle alone reads each such pause as a
-    // finish and fires a false "done". Any resumed output cancels the pending
-    // notification; only sustained quiet lets it through.
-    const DONE_CONFIRM_MS = 12000
-    // Continuous-output ceiling. An agent's work is bursty — tool calls, API waits
-    // and message boundaries punctuate it with ≥800ms gaps that reset the burst —
-    // so a burst that runs THIS long with no gap at all isn't an agent thinking,
-    // it's a process that just keeps printing. Kept high so a genuinely long agent
-    // stream is never mistaken for idle; only truly unbroken streams cross it.
-    const MAX_WORK_MS = 180000
 
     const labelOf = (): string =>
       wsById(useStore.getState(), workspaceId)?.agents.find((a) => a.id === id)?.label ?? 'Terminal'
@@ -599,149 +558,49 @@ function TerminalPane({
       playCue(cue)
     }
 
-    const evaluateIdle = (): void => {
-      if (disposed) return
-      const ranFor = workingSince ? Date.now() - workingSince : 0
-      working = false
-      workingSince = 0
-      // A real gap happened → the next output is a fresh burst, not a continuation
-      // of the steady stream. Re-arm burst tracking.
-      steady = false
-      // A bell "sticks" until the next settle: programs usually ring it and
-      // then keep drawing the prompt, which would otherwise flip the status
-      // back to working → idle and lose the attention.
-      const next: AgentStatus = bellRang || needsAttention(tail) ? 'attention' : 'idle'
-      bellRang = false
-      setStatus(id, next)
-      if (ranFor >= DONE_AFTER_MS) taskActive = true
-      if (next === 'attention') {
-        // The task ended in a question — the attention alert covers it; a later
-        // quiet spell must not ALSO announce "done".
-        taskActive = false
-        clearTimeout(doneConfirmTimer)
-        maybeNotify('attention')
-        maybeSound('attention')
-      } else if (taskActive) {
-        // Looks finished — but agents pause like this mid-task too (thinking,
-        // sub-agents). Only believe it after DONE_CONFIRM_MS of unbroken quiet;
-        // onActivity cancels this timer the moment output resumes.
-        clearTimeout(doneConfirmTimer)
-        doneConfirmTimer = setTimeout(() => {
-          if (disposed) return
-          taskActive = false
-          maybeNotify('done')
-          maybeSound('done')
-          // Quiet visual nod on the card itself (green ring sweep + ✓ in the
+    // Everything that decides what the output MEANS — working, finished,
+    // waiting for you, binary missing — lives in the tracker. This effect owns
+    // the transport (pty, xterm) and hands it the raw stream.
+    const tracker = createAgentStatusTracker(
+      { startupCommand: agent.startupCommand },
+      {
+        setStatus: (s) => setStatus(id, s),
+        setWorking: (since) => setAgentRuntime(id, { status: 'working', workingSince: since }),
+        notify: maybeNotify,
+        sound: maybeSound,
+        doneFlash: () => {
+          // Quiet visual nod on the card itself (green ring sweep + tick in the
           // header). The timeout slightly outlives the 1.2s animation so the
           // class is never yanked mid-sweep.
           setDoneFlash(true)
           window.clearTimeout(doneFlashTimer.current)
           doneFlashTimer.current = window.setTimeout(() => setDoneFlash(false), 1400)
-        }, DONE_CONFIRM_MS)
-      }
-    }
-
-    // Missing agent binary: a pane with a startupCommand auto-runs an agent CLI,
-    // and when the binary is gone the shell just prints its "command not found"
-    // with zero app-level feedback. Watch the SAME raw tail onActivity already
-    // maintains (no extra subscription) during the first 20s after spawn.
-    // Matching is LINE-scoped: the echoed startup command keeps the binary name
-    // in the tail for the whole window, so "binary somewhere in the tail AND an
-    // error phrase somewhere in the tail" false-positives on any stray "No such
-    // file or directory" (e.g. an agent noting an optional config is missing).
-    // The binary name and the error signature must sit on the SAME line, in one
-    // of the real shell formats — a bare echoed command line never matches, and
-    // neither does an error about some other file.
-    const startupBin = (((agent.startupCommand ?? '').trim().split(/\s+/)[0] ?? '')
-      .split(/[\\/]/)
-      .pop() ?? '')
-      .replace(/\.(exe|cmd|bat)$/i, '')
-      .toLowerCase()
-    const MISSING_BIN_WINDOW_MS = 20000
-    // `claude` → matches `claude`, `claude.exe`, `/usr/local/bin/claude`, …
-    const binEsc = startupBin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const binTok = `(?:\\S*[\\\\/])?${binEsc}(?:\\.(?:exe|cmd|bat))?`
-    const MISSING_BIN_LINE_RES = startupBin
-      ? [
-          // bash/dash/POSIX exec: `bash: claude: command not found`,
-          // `claude: No such file or directory` (with optional `bash: ` prefix).
-          new RegExp(`(?:^|[:\\s])${binTok}\\s*:\\s*(?:command not found|no such file or directory)`, 'i'),
-          // zsh/fish put the name last: `zsh: command not found: claude`.
-          new RegExp(`command not found\\s*:\\s*${binTok}(?:$|[\\s'"\`])`, 'i'),
-          // PowerShell: `The term 'claude' is not recognized …`.
-          new RegExp(`term ['"‘“]?${binTok}['"’”]? is not recognized`, 'i'),
-          // cmd.exe: `'claude' is not recognized as an internal or external command …`.
-          new RegExp(`['"]${binTok}['"] is not recognized as an internal or external`, 'i')
-        ]
-      : []
-    let spawnedAt = 0
-    const checkMissingBin = (): void => {
-      if (!startupBin || missingBinNotified.current) return
-      if (!spawnedAt || Date.now() - spawnedAt > MISSING_BIN_WINDOW_MS) return
-      // Strip ANSI per line (shells color these errors), then require a line
-      // that IS a missing-binary report about OUR binary.
-      const lines = stripAnsi(tail).split(/\r?\n/)
-      if (!lines.some((line) => MISSING_BIN_LINE_RES.some((re) => re.test(line)))) return
-      missingBinNotified.current = true
-      const url = AGENT_INSTALL_URLS[startupBin]
-      // Sticky error toast (Toasts.tsx never auto-dismisses errors); unknown
-      // binaries have no docs URL to offer, so they get no action button.
-      useStore.getState().pushToast(
-        `“${startupBin}” isn’t installed or isn’t on your PATH`,
-        'error',
-        url
-          ? { actionLabel: 'Install guide', onAction: () => void window.api.openExternal(url) }
-          : undefined
-      )
-    }
-
-    // Coalesce a stream of output into a single "working" flip (avoids a store
-    // write per chunk); settle to idle/attention 800ms after output stops.
-    // The tail stays RAW (needsAttention strips it whole) — stripping per chunk
-    // leaked halves of escape sequences split across chunk boundaries.
-    const onActivity = (d: string): void => {
-      tail = clampTail(tail + d, 1200)
-      checkMissingBin()
-      // Output resumed — whatever settle preceded it was a mid-task pause, not
-      // a finish. Kill the pending "done" before it can fire.
-      clearTimeout(doneConfirmTimer)
-      // Once classified steady, stop flipping to "working" on each chunk — just
-      // keep the tail current (for attention detection) and let the idle timer
-      // re-check whenever the stream finally pauses.
-      if (!steady) {
-        if (!working) {
-          working = true
-          workingSince = Date.now()
-          setAgentRuntime(id, { status: 'working', workingSince })
-        } else if (Date.now() - workingSince > MAX_WORK_MS) {
-          // Unbroken output past the ceiling → a live/steady process, not a task.
-          // Stop the ever-climbing "working" timer and settle it now; a genuine
-          // pause (evaluateIdle) clears `steady` so a real later burst is tracked.
-          steady = true
-          working = false
-          workingSince = 0
-          taskActive = false
-          setStatus(id, needsAttention(tail) ? 'attention' : 'idle')
+        },
+        missingBinary: (bin) => {
+          // The ref, not the tracker, is what makes this once-only: it outlives
+          // a relaunch (which builds a new tracker), so retrying a pane whose
+          // binary is still missing doesn't toast again.
+          if (missingBinNotified.current) return
+          missingBinNotified.current = true
+          const url = AGENT_INSTALL_URLS[bin]
+          // Sticky error toast (Toasts.tsx never auto-dismisses errors); unknown
+          // binaries have no docs URL to offer, so they get no action button.
+          useStore
+            .getState()
+            .pushToast(
+              `“${bin}” isn’t installed or isn’t on your PATH`,
+              'error',
+              url
+                ? { actionLabel: 'Install guide', onAction: () => void window.api.openExternal(url) }
+                : undefined
+            )
         }
       }
-      clearTimeout(idleTimer)
-      idleTimer = setTimeout(evaluateIdle, 800)
-    }
+    )
 
     // BEL from the program itself is the one non-heuristic "I need you" signal
     // (Claude Code rings it on permission prompts). Treat it as attention.
-    term.onBell(() => {
-      bellRang = true
-      clearTimeout(idleTimer)
-      clearTimeout(doneConfirmTimer)
-      working = false
-      workingSince = 0
-      steady = false
-      taskActive = false
-      setStatus(id, 'attention')
-      maybeNotify('attention')
-      maybeSound('attention')
-    })
+    term.onBell(() => tracker.onBell())
 
     const start = async (): Promise<void> => {
       setStatus(id, 'starting')
@@ -788,77 +647,29 @@ function TerminalPane({
       // missing-bin watch) — only rendering waits. A timeout always reveals in
       // the end, so an unexpected shell can never leave the pane blank; and the
       // sentinel clears the screen shell-side, so that reveal is clean too.
-      const sid = shell?.id
-      const winPlat = window.api.platform === 'win32'
-      const cdCmd = buildCd(sid, winPlat, wt.cwd)
-      const hideAgent = !!agent.agentId && !!agent.startupCommand
-      let booting = !!cdCmd || hideAgent
-      let bootPhase: 'cwd' | 'agent' = cdCmd ? 'cwd' : 'agent'
-      let bootAccum = ''
-      let bootClock = 0
-      // Assigned, not declared — the holder lives at effect scope so the unmount
-      // cleanup can clear it (it was the one timer the cleanup missed).
-      bootTimer = 0
       let startupSent = false
-      const stripSeq = (x: string): string => x.replace(CURSOR_STYLE_SEQ, '')
       const sendStartup = (): void => {
         if (startupSent || !agent.startupCommand) return
         startupSent = true
         // Arm the missing-binary watch from when the command is sent.
-        spawnedAt = Date.now()
+        tracker.armMissingBinaryWatch()
         window.api.pty.write(pid, agent.startupCommand + '\r')
       }
-      const endBoot = (tail: string): void => {
-        booting = false
-        window.clearTimeout(bootTimer)
-        if (disposed) return
-        term.reset()
-        if (tail) term.write(stripSeq(tail))
-      }
-      // Safety net: if the sentinel / alt-screen never shows (an exotic shell, a
-      // non-TUI agent), reveal what we have and make sure the agent launched.
-      // `restart` starts a fresh clock for a new phase; otherwise the cwd phase
-      // re-arms off the same clock as each chunk lands, so the wait follows the
-      // shell's silence instead of a fixed budget that a slow start blows past.
-      const armBootTimeout = (restart = false): void => {
-        window.clearTimeout(bootTimer)
-        if (restart || !bootClock) bootClock = Date.now()
-        const wait =
-          bootPhase === 'cwd' ? cwdRevealDelay(Date.now() - bootClock) : AGENT_REVEAL_MS
-        bootTimer = window.setTimeout(() => {
-          if (disposed) return
-          const tail = bootAccum
-          bootAccum = ''
-          endBoot(tail)
-          sendStartup()
-        }, wait)
-      }
-      const onBootData = (s: string): void => {
-        if (disposed) return
-        bootAccum += s
-        if (bootPhase === 'cwd') {
-          armBootTimeout()
-          const j = rawIndexAfterToken(bootAccum, BOOT_MARK)
-          if (j === -1) return
-          const tail = bootAccum.slice(j)
-          bootAccum = ''
-          if (hideAgent) {
-            // cwd pinned & hidden; launch the agent, still hidden, and reveal
-            // when its TUI takes over the alternate screen.
-            bootPhase = 'agent'
-            term.reset()
-            sendStartup()
-            armBootTimeout(true)
-          } else {
-            endBoot(tail) // clean prompt; a non-agent command (if any) shows normally
-            sendStartup()
-          }
-        } else {
-          // Agent phase: reveal the moment the TUI enters the alternate screen.
-          const i = bootAccum.indexOf('\x1b[?1049h')
-          if (i !== -1) endBoot(bootAccum.slice(i))
+      const quietBoot = createQuietBoot(
+        {
+          shellId: shell?.id,
+          win: window.api.platform === 'win32',
+          cwd: wt.cwd,
+          hideAgent: !!agent.agentId && !!agent.startupCommand
+        },
+        {
+          resetScreen: () => term.reset(),
+          write: (s) => term.write(s),
+          sendStartup,
+          writeToShell: (line) => window.api.pty.write(pid, line + '\r')
         }
-      }
+      )
+      boot = quietBoot
 
       // A pane in a hidden (background) workspace buffers its writes for up to
       // 400ms: xterm's DOM renderer pays ANSI parse + DOM mutation per write
@@ -894,9 +705,9 @@ function TerminalPane({
           s = s.slice(0, s.length - partial[0].length)
         }
         if (s) {
-          if (booting) onBootData(s)
+          if (quietBoot.isBooting()) quietBoot.onData(s)
           else {
-            const out = stripSeq(s)
+            const out = stripCursorStyle(s)
             const hidden = useStore.getState().activeWorkspaceId !== workspaceId
             if (hidden && !d.includes('\x07')) {
               pendingWrites.push(out)
@@ -909,31 +720,20 @@ function TerminalPane({
             }
           }
         }
-        onActivity(d)
+        tracker.onData(d)
       }))
       unsubs.push(
         window.api.pty.onExit(pid, (code) => {
-          clearTimeout(idleTimer)
-          // The exit notification supersedes any pending settle-based "done".
-          clearTimeout(doneConfirmTimer)
           ptyRef.current = null
-          const errored = !!code && code !== 0
-          setStatus(id, errored ? 'error' : 'exited')
+          // Status, notification and cue for the exit all live in the tracker.
+          tracker.onExit(code)
           flushPending()
           term.write('\r\n\x1b[31m[process exited]\x1b[0m\r\n')
-          maybeNotify(errored ? 'error' : 'exited')
-          maybeSound(errored ? 'error' : 'done')
         })
       )
       term.onData((d) => {
         window.api.pty.write(pid, d)
-        // Typing into a pane means you're engaged — clear a latched bell so a
-        // one-off \a (build-done, a beep) doesn't keep the pane stuck showing
-        // "attention" (and re-nagging) when nothing is actually waiting on you.
-        if (bellRang) {
-          bellRang = false
-          if (!working) setStatus(id, 'idle')
-        }
+        tracker.onUserInput()
         // When the user runs a command, tag the terminal if it's a known agent —
         // so the badge appears even when an agent is started by hand.
         if (d.includes('\r')) {
@@ -961,24 +761,8 @@ function TerminalPane({
         }
       })
 
-      // Kick off the (quiet) bootstrap. With nothing to hide it behaves exactly
-      // as before: pin the cwd, then run the startup command.
-      if (!booting) {
-        if (cdCmd) window.api.pty.write(pid, cdCmd + '\r')
-        sendStartup()
-      } else if (cdCmd) {
-        // Pin the cwd, then print the sentinel so we know when its echo/output is
-        // done and can reveal a clean screen (see onBootData). The sentinel also
-        // clears the screen shell-side, so even a missed reveal lands clean.
-        window.api.pty.write(pid, cdCmd + '\r')
-        window.api.pty.write(pid, buildSentinelCmd(sid, winPlat, BOOT_MARK) + '\r')
-        armBootTimeout()
-      } else {
-        // No cwd to pin but a known agent to hide: launch it straight away,
-        // hidden, and reveal when its TUI takes over the screen.
-        sendStartup()
-        armBootTimeout()
-      }
+      // Subscriptions are in place, so nothing the shell replies with is missed.
+      quietBoot.begin()
     }
     void start().catch((e) => {
       if (disposed) return
@@ -1003,10 +787,9 @@ function TerminalPane({
 
     return () => {
       disposed = true
-      clearTimeout(idleTimer)
-      clearTimeout(doneConfirmTimer)
+      tracker.dispose()
+      boot?.dispose()
       clearTimeout(selTimer)
-      window.clearTimeout(bootTimer)
       themeObserver.disconnect()
       host.removeEventListener('mousedown', onTermMouseDown, true)
       window.removeEventListener('mouseup', onWinMouseUp, true)

@@ -5,13 +5,51 @@ import { existsSync, promises as fsp } from 'fs'
 
 const pexec = promisify(execFile)
 
-async function git(cwd: string, args: string[], opts?: { maxBuffer?: number }): Promise<string> {
+/**
+ * How a git command actually gets run. Every git process this module starts
+ * goes through one of these — there is no second path.
+ *
+ * Resolves with stdout; REJECTS on a non-zero exit, carrying git's stderr on
+ * the error. The distinction is load-bearing: `orphanHasWork` reads a rejection
+ * from `merge-base --is-ancestor` as "this branch has unmerged commits", and
+ * several callers treat a rejection as "fail safe, keep the worktree".
+ */
+export type GitRunner = (
+  cwd: string,
+  args: string[],
+  opts?: { maxBuffer?: number }
+) => Promise<string>
+
+const execFileRunner: GitRunner = async (cwd, args, opts) => {
   const { stdout } = await pexec('git', args, {
     cwd,
     windowsHide: true,
     maxBuffer: opts?.maxBuffer ?? 16 * 1024 * 1024
   })
   return stdout
+}
+
+let runner: GitRunner = execFileRunner
+
+/**
+ * Swap the git runner, returning a function that puts the previous one back.
+ *
+ * This is the seam. The app never calls it — production always runs on
+ * `execFileRunner`. It exists so the destructive paths here (applyAgentFiles
+ * and its rollback, orphan removal, merge conflict handling) can be driven
+ * against a scripted adapter in unit tests instead of needing a real repo and
+ * a real Electron launch, which is why they went untested for so long.
+ */
+export function setGitRunner(next: GitRunner): () => void {
+  const prev = runner
+  runner = next
+  return () => {
+    runner = prev
+  }
+}
+
+function git(cwd: string, args: string[], opts?: { maxBuffer?: number }): Promise<string> {
+  return runner(cwd, args, opts)
 }
 
 export interface GitInfo {

@@ -76,10 +76,13 @@ const LEGACY_OPEN_KEY = 'vectro.openWorkspaces'
 // clobber the tabs we're about to restore.
 let persistEnabled = false
 
+type StoreState = ReturnType<typeof useStore.getState>
+
 /** Snapshot the live tab set for disk. Runtime-only agent fields (ptyId, status,
- *  cwd, …) are stripped by toPersisted. */
-function snapshot(): PersistedWorkspaces {
-  const s = useStore.getState()
+ *  cwd, …) are stripped by toPersisted. Takes the state rather than reading it,
+ *  so the same function can serve the writer (latest state) and the autosave's
+ *  change signature (whatever state the subscription is being asked about). */
+function snapshotOf(s: StoreState): PersistedWorkspaces {
   return {
     version: 1,
     activeId: s.activeWorkspaceId,
@@ -97,6 +100,32 @@ function snapshot(): PersistedWorkspaces {
       ...s.parkedWorkspaces
     ]
   }
+}
+
+/**
+ * Signature of everything that reaches disk — the autosave's change trigger.
+ *
+ * Derived from the snapshot itself, so it covers exactly the fields that get
+ * written and cannot fall behind them. This used to be a hand-written template
+ * in App.tsx that listed each persisted field by name, and it had to be edited
+ * in step with toPersisted; twice it wasn't, and `termTheme` and `projectPath`
+ * silently reached disk only when some unrelated change happened to trigger a
+ * save. Reading the snapshot means adding a field to toPersisted is enough.
+ *
+ * Still no runtime churn: toPersisted has already stripped status, ptyId, cwd
+ * and branch, so a streaming agent flipping between working and idle produces
+ * an identical signature and no write.
+ *
+ * Shaped as a store selector so nothing has to declare WHICH slices matter —
+ * that list was the same maintenance hazard one level up.
+ */
+export function persistedSignature(s: StoreState): string {
+  return JSON.stringify(snapshotOf(s))
+}
+
+/** The snapshot as of right now — what actually gets written. */
+function snapshot(): PersistedWorkspaces {
+  return snapshotOf(useStore.getState())
 }
 
 /** Single writer for the workspace store — shared by the debounced autosave in

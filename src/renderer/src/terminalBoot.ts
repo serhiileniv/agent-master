@@ -3,10 +3,12 @@
  *
  * A freshly spawned shell is noisy — a banner, whatever the user's profile
  * prints, and the echo of the two commands the pane injects (the cwd pin and a
- * readiness sentinel). None of that belongs above an agent, so TerminalPane
- * holds rendering back until the sentinel comes through and then reveals a clean
- * screen. The pieces of that handshake live here so they can be tested without
- * a DOM: TerminalPane owns the timing, this module owns the strings and the math.
+ * readiness sentinel). None of that belongs above an agent, so rendering is held
+ * back until the sentinel comes through and a clean screen can be revealed.
+ *
+ * The whole handshake lives here — the strings, the math, and the phase machine
+ * that drives them — so it can be tested without a DOM. TerminalPane owns the
+ * transport (the PTY and the xterm instance) and supplies them as a sink.
  */
 
 /** Sentinel the shell prints once the cwd pin has run. Contiguous only in the
@@ -109,4 +111,151 @@ export function rawIndexAfterToken(raw: string, token: string): number {
   const idx = clean.indexOf(token)
   if (idx === -1) return -1
   return map[idx + token.length - 1] + 1
+}
+
+/** PSReadLine's DECSCUSR cursor-style sequence. Left in, it re-enables the fast
+ *  blink the pane deliberately turns off. */
+// eslint-disable-next-line no-control-regex
+const CURSOR_STYLE_SEQ = /\x1b\[[0-9]* q/g
+
+export function stripCursorStyle(s: string): string {
+  return s.replace(CURSOR_STYLE_SEQ, '')
+}
+
+/** The sequence a TUI emits when it takes over the alternate screen — the agent
+ *  has painted, so there is something worth showing. */
+const ALT_SCREEN = '\x1b[?1049h'
+
+/** Everything the boot does to the pane and the shell. */
+export interface QuietBootSink {
+  /** Wipe the pane. */
+  resetScreen: () => void
+  /** Write to the pane. */
+  write: (s: string) => void
+  /** Send the agent's startup command down the PTY. Must be idempotent. */
+  sendStartup: () => void
+  /** Send a line to the shell (the cwd pin, the sentinel). */
+  writeToShell: (line: string) => void
+}
+
+export interface QuietBoot {
+  /** True while rendering is held back. Once false, the caller writes output to
+   *  the pane itself and must stop calling onData. */
+  isBooting: () => boolean
+  /** Kick off the handshake. Call after the PTY subscriptions are in place, so
+   *  nothing the shell says in reply is missed. */
+  begin: () => void
+  /** A raw PTY chunk, while booting. */
+  onData: (chunk: string) => void
+  dispose: () => void
+}
+
+/**
+ * Hold the pane blank until the shell is ready, then reveal it clean.
+ *
+ * Two phases, either of which may be skipped:
+ *
+ *  - **cwd** — the pin and the sentinel have been sent; wait for the sentinel to
+ *    appear in the OUTPUT (not its echo) and treat everything after it as the
+ *    real start.
+ *  - **agent** — the startup command has been sent; wait for its TUI to take
+ *    over the alternate screen.
+ *
+ * A timeout always reveals in the end, so an unexpected shell can never leave
+ * the pane permanently blank.
+ */
+export function createQuietBoot(
+  spec: { shellId: string | undefined; win: boolean; cwd: string; hideAgent: boolean },
+  sink: QuietBootSink
+): QuietBoot {
+  const cdCmd = buildCd(spec.shellId, spec.win, spec.cwd)
+  let booting = !!cdCmd || spec.hideAgent
+  let phase: 'cwd' | 'agent' = cdCmd ? 'cwd' : 'agent'
+  let accum = ''
+  let clock = 0
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let disposed = false
+
+  const endBoot = (tail: string): void => {
+    booting = false
+    clearTimeout(timer)
+    if (disposed) return
+    sink.resetScreen()
+    if (tail) sink.write(stripCursorStyle(tail))
+  }
+
+  // Safety net: if the sentinel / alt-screen never shows (an exotic shell, a
+  // non-TUI agent), reveal what we have and make sure the agent launched.
+  // `restart` starts a fresh clock for a new phase; otherwise the cwd phase
+  // re-arms off the same clock as each chunk lands, so the wait follows the
+  // shell's silence instead of a fixed budget that a slow start blows past.
+  const armTimeout = (restart = false): void => {
+    clearTimeout(timer)
+    if (restart || !clock) clock = Date.now()
+    const wait = phase === 'cwd' ? cwdRevealDelay(Date.now() - clock) : AGENT_REVEAL_MS
+    timer = setTimeout(() => {
+      if (disposed) return
+      const tail = accum
+      accum = ''
+      endBoot(tail)
+      sink.sendStartup()
+    }, wait)
+  }
+
+  return {
+    isBooting: () => booting,
+
+    begin() {
+      if (disposed) return
+      // With nothing to hide this behaves exactly as it did before quiet boot
+      // existed: pin the cwd, then run the startup command.
+      if (!booting) {
+        if (cdCmd) sink.writeToShell(cdCmd)
+        sink.sendStartup()
+      } else if (cdCmd) {
+        // Pin the cwd, then print the sentinel so we know when its echo/output
+        // is done and can reveal a clean screen. The sentinel also clears the
+        // screen shell-side, so even a missed reveal lands clean.
+        sink.writeToShell(cdCmd)
+        sink.writeToShell(buildSentinelCmd(spec.shellId, spec.win, BOOT_MARK))
+        armTimeout()
+      } else {
+        // No cwd to pin but a known agent to hide: launch it straight away,
+        // hidden, and reveal when its TUI takes over the screen.
+        sink.sendStartup()
+        armTimeout()
+      }
+    },
+
+    onData(chunk) {
+      if (disposed) return
+      accum += chunk
+      if (phase === 'cwd') {
+        armTimeout()
+        const j = rawIndexAfterToken(accum, BOOT_MARK)
+        if (j === -1) return
+        const tail = accum.slice(j)
+        accum = ''
+        if (spec.hideAgent) {
+          // cwd pinned & hidden; launch the agent, still hidden, and reveal when
+          // its TUI takes over the alternate screen.
+          phase = 'agent'
+          sink.resetScreen()
+          sink.sendStartup()
+          armTimeout(true)
+        } else {
+          endBoot(tail) // clean prompt; a non-agent command shows normally
+          sink.sendStartup()
+        }
+      } else {
+        const i = accum.indexOf(ALT_SCREEN)
+        if (i !== -1) endBoot(accum.slice(i))
+      }
+    },
+
+    dispose() {
+      disposed = true
+      clearTimeout(timer)
+    }
+  }
 }

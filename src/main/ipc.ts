@@ -1,5 +1,5 @@
 import { app, ipcMain, dialog, BrowserWindow, Notification, shell, clipboard } from 'electron'
-import { join, basename, isAbsolute, resolve, sep, extname } from 'path'
+import { join, basename, isAbsolute } from 'path'
 import { promises as fs, watch as fsWatch, type FSWatcher } from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -26,6 +26,12 @@ import {
   applyAgentFiles,
   friendlyGitError
 } from './git'
+import {
+  listDir,
+  readFile as readScopedFile,
+  saveFile as saveScopedFile
+} from './scoped-files'
+import { createWorkspaceStore } from './workspace-store'
 import { detectShells, detectAgents } from './shells'
 import { whenPathReady } from './env-path'
 import { checkForUpdate, initAutoUpdate } from './update'
@@ -48,6 +54,10 @@ const CANVAS_DIR = '.monad'
 function workspacesFile(): string {
   return join(app.getPath('userData'), 'workspaces.json')
 }
+
+/** Atomic, serialized read/write of the tab set. Created at module scope so the
+ *  save chain is shared by every handler registration in this process. */
+const workspaceStore = createWorkspaceStore(workspacesFile)
 
 /**
  * Registers every main-process IPC handler against a window accessor.
@@ -343,112 +353,19 @@ export function registerIpc(
   })
 
   // --- File explorer / editor (right-side file panel) ---
-  // SECURITY BOUNDARY: the renderer passes a scope root (a worktree/project
-  // path) plus a path relative to it. resolveWithin resolves rel against root
-  // and returns the absolute path ONLY if it stays inside root — every escape
-  // (`..` traversal, absolute rel, symlink-free lexical escape) yields null, so
-  // no file:tree/read/save can ever touch anything outside the scope root.
-  const resolveWithin = (root: string, rel: string): string | null => {
-    if (typeof root !== 'string' || typeof rel !== 'string') return null
-    if (!root) return null
-    // An absolute `rel` would let resolve() ignore root entirely — reject it.
-    if (isAbsolute(rel)) return null
-    const rootAbs = resolve(root)
-    const abs = resolve(rootAbs, rel)
-    if (abs === rootAbs) return abs
-    if (abs.startsWith(rootAbs + sep)) return abs
-    return null
-  }
-
-  // Image extensions read as a base64 data URL (like wallpaper:read); everything
-  // else is read as a buffer and either returned as utf8 text or flagged binary.
-  const IMAGE_EXT: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.bmp': 'image/bmp',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon'
-  }
-  const MAX_FILE_BYTES = 2 * 1024 * 1024
-
-  // Lazily list ONE directory (never recursive). Dirs first, then files, each
-  // alphabetical case-insensitive. `.git` is skipped entirely; `node_modules`
-  // shows as an entry but is only ever walked if the user expands it via another
-  // file:tree call. Dotfiles are included. rel = '' lists the root itself.
-  ipcMain.handle('file:tree', async (_e, { root, rel }: { root: string; rel: string }) => {
-    const dir = resolveWithin(root, rel ?? '')
-    if (!dir) return { entries: [] }
-    try {
-      const dirents = await fs.readdir(dir, { withFileTypes: true })
-      const entries = dirents
-        .filter((d) => d.name !== '.git')
-        .map((d) => ({ name: d.name, kind: d.isDirectory() ? ('dir' as const) : ('file' as const) }))
-        .sort((a, b) => {
-          if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1
-          return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-        })
-      return { entries }
-    } catch {
-      return { entries: [] }
-    }
-  })
-
-  // Read a single file for the editor/preview. Text → `content`; image →
-  // `dataUrl`; binary (NUL in first ~8000 bytes) or >2MB → neither.
-  ipcMain.handle('file:read', async (_e, { root, rel }: { root: string; rel: string }) => {
-    const empty = { mtimeMs: 0, size: 0, isBinary: false, tooLarge: false }
-    const abs = resolveWithin(root, rel ?? '')
-    if (!abs) return empty
-    try {
-      const st = await fs.stat(abs)
-      if (!st.isFile()) return empty
-      if (st.size > MAX_FILE_BYTES) {
-        return { mtimeMs: st.mtimeMs, size: st.size, isBinary: false, tooLarge: true }
-      }
-      const ext = extname(abs).toLowerCase()
-      const mime = IMAGE_EXT[ext]
-      if (mime) {
-        const buf = await fs.readFile(abs)
-        return {
-          mtimeMs: st.mtimeMs,
-          size: st.size,
-          isBinary: false,
-          tooLarge: false,
-          dataUrl: `data:${mime};base64,${buf.toString('base64')}`
-        }
-      }
-      const buf = await fs.readFile(abs)
-      const scan = Math.min(buf.length, 8000)
-      let isBinary = false
-      for (let i = 0; i < scan; i++) {
-        if (buf[i] === 0) {
-          isBinary = true
-          break
-        }
-      }
-      if (isBinary) return { mtimeMs: st.mtimeMs, size: st.size, isBinary: true, tooLarge: false }
-      return {
-        mtimeMs: st.mtimeMs,
-        size: st.size,
-        isBinary: false,
-        tooLarge: false,
-        content: buf.toString('utf8')
-      }
-    } catch {
-      return empty
-    }
-  })
-
-  // Save with optimistic concurrency: the caller passes the mtimeMs it last read.
-  // If the on-disk file changed under it (mtime differs by >1ms) we refuse and
-  // report a conflict WITHOUT writing, so the caller can decide. To override,
-  // re-send with expectedMtimeMs: 0 (bypasses the check).
+  // The renderer passes a scope root (a worktree/project path) plus a path
+  // relative to it. Containment, the size cap, binary detection and the
+  // save-conflict check all live in scoped-files.ts — see the SECURITY BOUNDARY
+  // note on resolveWithin there.
+  ipcMain.handle('file:tree', (_e, { root, rel }: { root: string; rel: string }) =>
+    listDir(root, rel)
+  )
+  ipcMain.handle('file:read', (_e, { root, rel }: { root: string; rel: string }) =>
+    readScopedFile(root, rel)
+  )
   ipcMain.handle(
     'file:save',
-    async (
+    (
       _e,
       {
         root,
@@ -456,27 +373,7 @@ export function registerIpc(
         content,
         expectedMtimeMs
       }: { root: string; rel: string; content: string; expectedMtimeMs: number }
-    ) => {
-      const abs = resolveWithin(root, rel ?? '')
-      if (!abs) return { ok: false, error: 'invalid path' }
-      try {
-        if (expectedMtimeMs !== 0) {
-          try {
-            const st = await fs.stat(abs)
-            if (st.isFile() && Math.abs(st.mtimeMs - expectedMtimeMs) > 1) {
-              return { ok: false, conflict: true, mtimeMs: st.mtimeMs }
-            }
-          } catch {
-            // No file on disk yet (new file) — nothing to conflict with.
-          }
-        }
-        await fs.writeFile(abs, content, 'utf8')
-        const st = await fs.stat(abs)
-        return { ok: true, mtimeMs: st.mtimeMs }
-      } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : String(e) }
-      }
-    }
+    ) => saveScopedFile(root, rel, content, expectedMtimeMs)
   )
 
   // Recursive fs.watch on the scope root, debounced, emitting `file:changed`.
@@ -564,47 +461,9 @@ export function registerIpc(
   // Single source of truth for the whole tab set since workspaces stopped being
   // folders: one with no folder has no .monad/canvas.json to live in, so the
   // per-project file can't hold the set any more.
-  ipcMain.handle('workspaces:load', async () => {
-    try {
-      const txt = await fs.readFile(workspacesFile(), 'utf8')
-      return JSON.parse(txt)
-    } catch {
-      return null
-    }
-  })
+  ipcMain.handle('workspaces:load', () => workspaceStore.load())
 
-  // Saves are serialized through this chain. The renderer has two independent
-  // writers — the 400ms layout autosave and the un-awaited flush in
-  // closeWorkspaceById — so two saves can genuinely overlap. Write-and-rename is
-  // atomic against a crash, but NOT against a second writer using the same temp
-  // path: B could truncate and rewrite the temp file while A was mid-write, and
-  // A would then rename the spliced result into place, losing the whole tab set.
-  let saveChain: Promise<boolean> = Promise.resolve(true)
-  let saveSeq = 0
-
-  ipcMain.handle('workspaces:save', async (_e, data: unknown) => {
-    const run = async (): Promise<boolean> => {
-      const target = workspacesFile()
-      // Unique per write, so even a stray concurrent writer can't collide.
-      const tmp = `${target}.${process.pid}.${++saveSeq}.tmp`
-      try {
-        await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8')
-        await fs.rename(tmp, target)
-        return true
-      } catch (e) {
-        console.error('[spymaster] workspaces:save failed:', e)
-        try {
-          await fs.unlink(tmp)
-        } catch {
-          /* the temp file may not exist — nothing to clean up */
-        }
-        return false
-      }
-    }
-    // Never let one failed save break the chain for every later one.
-    saveChain = saveChain.then(run, run)
-    return saveChain
-  })
+  ipcMain.handle('workspaces:save', (_e, data: unknown) => workspaceStore.save(data))
 
   // --- Git / per-agent worktree isolation ---
   ipcMain.handle('git:info', (_e, projectPath: string) => getGitInfo(projectPath))
