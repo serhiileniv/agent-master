@@ -109,6 +109,55 @@ describe('animation power coverage', () => {
     expect(grad![1]).not.toMatch(/rgba\([^)]*,\s*0?\.\d+\s*\)/)
   })
 
+  // `filter` is not a paint tweak — it forces the element into its own render
+  // pass and runs a shader over the whole surface every time its content
+  // repaints. On a terminal full of streaming agent output that is "constantly",
+  // and it was applied to EVERY unselected pane plus (while the app sat in the
+  // background) the entire window. Both were replaced by scrims, which the
+  // compositor blends during the normal draw. Panes and the app root are the
+  // two high-traffic surfaces; a filter on transient chrome is still fine.
+  it('never filters a surface that repaints with terminal output', () => {
+    const hot = rules()
+      .filter((r) => /\.vec-pane\b|(^|[\s,])\.app(?![\w-])/.test(r.selector))
+      // `backdrop-filter` samples what is BEHIND and is a separate,
+      // deliberately-scoped decision (see the has-wallpaper rules).
+      .filter((r) => /(^|[^-])\bfilter\s*:/.test(r.body.replace(/-webkit-backdrop-filter/g, '')))
+      .filter((r) => !/filter\s*:\s*none/.test(r.body))
+      .map((r) => r.selector)
+    expect(hot).toEqual([])
+  })
+
+  // Panes behind a maximized one are invisible at 10% opacity, but xterm kept
+  // parsing and mutating the DOM for all of them and the compositor kept
+  // drawing them. Skipping the subtree is what makes maximize — the mode people
+  // actually work in — stop costing nine terminals to show one.
+  it('skips the panes hidden behind a maximized one', () => {
+    const rule = rules().find(
+      (r) => /:has\(\.vec-pane\.is-focused\)/.test(r.selector) && /:not\(\.is-focused\)/.test(r.selector)
+    )
+    expect(rule, 'no rule targets the siblings of a maximized pane').toBeTruthy()
+    expect(rule!.body).toMatch(/content-visibility\s*:\s*hidden/)
+  })
+
+  // The cursor pause rule named `.xterm-cursor-blink`, a class xterm only adds
+  // when its OWN cursorBlink option is on — and it is off, because the blink is
+  // ours. So the rule matched nothing and the pause never fired. It has to name
+  // the same elements the animation does.
+  it('pauses the cursor blink with the selectors the animation actually uses', () => {
+    const blinkRule = rules().find((r) => /animation:[^;]*vec-cursor-blink/.test(r.body))
+    expect(blinkRule, 'no rule runs the vec-cursor-blink animation').toBeTruthy()
+    const animated = new Set(blinkRule!.selector.match(/\.xterm-cursor-[a-z]+/g) ?? [])
+    expect(animated.size).toBeGreaterThan(0)
+
+    const paused = rules()
+      .filter((r) => /animation-play-state\s*:\s*paused/.test(r.body))
+      .map((r) => r.selector)
+      .join(' ')
+    for (const cls of animated) {
+      expect(paused, `${cls} blinks but is never paused`).toContain(cls)
+    }
+  })
+
   // A full-viewport blend mode forces everything beneath it into a compositing
   // group, so every terminal write pays an extra full-screen pass.
   it('has no full-viewport blend layer', () => {

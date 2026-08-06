@@ -58,6 +58,12 @@ jobs:
       - run: node scripts/smoke/run-smoke.cjs tabs
       - run: node scripts/smoke/run-smoke.cjs wspersist
       - run: node scripts/smoke/run-smoke.cjs agentfolder
+      # An off-screen pane (background tab, or behind a maximized sibling) stops
+      # feeding xterm and buffers its agent's output instead. Coming back on
+      # screen is the ONLY thing that drains that buffer, so a broken flush would
+      # freeze a background agent's output with no error anywhere — this asserts
+      # both halves: held back while hidden, whole and in order on return.
+      - run: node scripts/smoke/run-smoke.cjs offscreen
       # PATH resolution is async now, so shells:list / agents:list await it —
       # and the renderer holds every terminal spawn on shells:list resolving.
       # A hang there opens the app to a stage of permanently dead panes, so

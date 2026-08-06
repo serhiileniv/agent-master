@@ -36,6 +36,28 @@ export function flushAgents(ids: string[]): void {
 }
 
 /**
+ * Force a pane's visible rows to be redrawn.
+ *
+ * Writing into a terminal whose subtree is still `content-visibility: hidden`
+ * puts the text in xterm's buffer but leaves the RENDERED rows stale — and
+ * nothing dirties them again until the next chunk of output arrives, so a quiet
+ * agent's pane could sit showing yesterday's screen after a workspace switch.
+ * (This hid behind the maximize case, where the refit happens to change the
+ * pane's size and a resize forces a full redraw. A tab switch doesn't resize
+ * anything, so there was nothing to force it.)
+ *
+ * Called once layout is restored, after flush + refit.
+ */
+export function refreshAgents(ids: string[]): void {
+  for (const id of ids) {
+    const t = terminals.get(id)
+    // rows is 0 on a terminal that has never been laid out; refresh(0, -1)
+    // would be a nonsense range.
+    if (t && t.rows > 0) t.refresh(0, t.rows - 1)
+  }
+}
+
+/**
  * Hand keyboard focus back to the active terminal (the maximized one, else the
  * sole selected one). Called after an overlay closes or a click lands off a pane,
  * so typing never dead-ends on `<body>` when no selection *transition* occurred
@@ -45,6 +67,28 @@ export function focusActiveTerminal(): void {
   const ws = activeWs(useStore.getState())
   const id = ws?.focusedId ?? ws?.selectedIds[0]
   if (id) terminals.get(id)?.focus()
+}
+
+// Diagnostics hook, alongside window.__agentStore. An off-screen pane buffers
+// its agent's output instead of writing it to xterm, and the only way to tell
+// that apart from "written but not painted" is to read the terminal's BUFFER —
+// a subtree with content-visibility:hidden renders nothing either way, so the
+// DOM cannot distinguish them. smoke:offscreen uses this to assert the
+// buffering actually happens, not merely that nothing is lost. Never used by
+// the app itself.
+if (typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__spymasterTerminalText = (
+    id: string
+  ): string | null => {
+    const t = terminals.get(id)
+    if (!t) return null
+    const buf = t.buffer.active
+    const lines: string[] = []
+    for (let i = 0; i < buf.length; i++) {
+      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
+    }
+    return lines.join('\n')
+  }
 }
 
 type ShellFamily = 'posix' | 'powershell' | 'cmd'
