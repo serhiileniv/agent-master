@@ -12,10 +12,10 @@ const isDev = !!process.env['ELECTRON_RENDERER_URL']
 // a quarantined .node, a flaky FS) must never take the whole app down silently.
 // Log and keep running; the worst case degrades to a single broken pane.
 process.on('uncaughtException', (err) => {
-  console.error('[spymaster] uncaughtException:', err)
+  console.error('[agentmaster] uncaughtException:', err)
 })
 process.on('unhandledRejection', (reason) => {
-  console.error('[spymaster] unhandledRejection:', reason)
+  console.error('[agentmaster] unhandledRejection:', reason)
 })
 
 // Optional profile override: `--user-data-dir=<abs path>` gives this instance
@@ -185,11 +185,11 @@ function createWindow(): void {
   const loadRenderer = (): void => {
     if (process.env['ELECTRON_RENDERER_URL']) {
       win?.loadURL(process.env['ELECTRON_RENDERER_URL']).catch((e) =>
-        console.error('[spymaster] loadURL failed:', e)
+        console.error('[agentmaster] loadURL failed:', e)
       )
     } else {
       win?.loadFile(join(__dirname, '../renderer/index.html')).catch((e) =>
-        console.error('[spymaster] loadFile failed:', e)
+        console.error('[agentmaster] loadFile failed:', e)
       )
     }
   }
@@ -201,7 +201,7 @@ function createWindow(): void {
   const recover = (why: string): void => {
     if (recoveries >= 3 || !win || win.isDestroyed()) return
     recoveries++
-    console.error(`[spymaster] renderer ${why} — reloading (attempt ${recoveries})`)
+    console.error(`[agentmaster] renderer ${why} — reloading (attempt ${recoveries})`)
     // The reloaded renderer respawns its terminals from canvas.json, so the old
     // ptys are orphaned — a hard reload/crash never runs React's unmount cleanup.
     // Kill them here or each crash-recovery leaks a whole set of live shells.
@@ -285,7 +285,7 @@ if (!app.requestSingleInstanceLock()) {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
   }).catch((e) => {
-    console.error('[spymaster] failed to start:', e)
+    console.error('[agentmaster] failed to start:', e)
     app.quit()
   })
 

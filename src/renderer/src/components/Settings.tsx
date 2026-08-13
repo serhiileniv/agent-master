@@ -427,7 +427,7 @@ export default function Settings(): JSX.Element {
           Command palette
           <kbd className="kbd">{modLabel('K')}</kbd>
         </button>
-        {version && <span className="settings__version">Spy Master v{version}</span>}
+        {version && <span className="settings__version">Agent Master v{version}</span>}
       </div>
     </Modal>
   )

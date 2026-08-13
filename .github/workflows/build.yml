@@ -2,7 +2,7 @@ name: Build installers
 
 # Run manually (Actions tab → Run workflow) or on a version tag. On a version tag
 # each build job attaches its installer to a GitHub Release ON THIS repo
-# (serhiileniv/spymaster) using the built-in GITHUB_TOKEN. That release IS the
+# (serhiileniv/agentmaster) using the built-in GITHUB_TOKEN. That release IS the
 # published release: the download site (GitHub Pages on this repo's gh-pages
 # branch) and the in-app update check both read this repo's releases/latest.
 #
@@ -115,7 +115,7 @@ jobs:
         with:
           # Must be unique per matrix job: upload-artifact@v4 fails when two jobs
           # write the same artifact name.
-          name: spymaster-${{ runner.os }}-test
+          name: agentmaster-${{ runner.os }}-test
           path: |
             dist/*.dmg
             dist/*.exe
@@ -129,7 +129,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_name }}
-          name: Spy Master ${{ github.ref_name }}
+          name: Agent Master ${{ github.ref_name }}
           draft: false
           prerelease: false
           fail_on_unmatched_files: false

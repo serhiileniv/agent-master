@@ -53,7 +53,7 @@ export function createWorkspaceStore(fileFor: () => string): WorkspaceStore {
           await fs.rename(tmp, target)
           return true
         } catch (e) {
-          console.error('[spymaster] workspaces:save failed:', e)
+          console.error('[agentmaster] workspaces:save failed:', e)
           try {
             await fs.unlink(tmp)
           } catch {

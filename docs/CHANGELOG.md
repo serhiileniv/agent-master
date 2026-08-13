@@ -1,10 +1,22 @@
 # Changelog
 
 Notable changes per release. Installers for every version are on the
-[releases page](https://github.com/serhiileniv/spymaster/releases).
+[releases page](https://github.com/serhiileniv/agentmaster/releases).
 
 This file was reconstructed from git history at v0.1.25; entries before then are summarised rather
 than exhaustive. Entries below keep the product name they shipped under.
+
+## v0.1.32
+
+- **Renamed Spy Master → Agent Master.** New app identity throughout: window title, installer,
+  Start-menu entry, and the download site. The artwork is unchanged — the tiled-panes mark carries
+  over — but the wordmark under it was re-rendered for the new name.
+- **This is a clean break, on purpose.** A new app identity means a new settings folder, so Agent
+  Master starts empty rather than inheriting a Spy Master profile, and installed copies of Spy
+  Master will not auto-update to it. Download Agent Master directly to move across.
+- **Your agent worktrees are not affected.** New ones go to `.agentmaster-worktrees/`, but a
+  worktree created under either earlier name is adopted where it stands, and orphan cleanup still
+  knows every location. `.monad/canvas.json` is likewise still read.
 
 ## v0.1.30
 

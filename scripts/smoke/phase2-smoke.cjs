@@ -13,10 +13,10 @@ const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.
 
 app.disableHardwareAcceleration()
 
-const REPO = join(os.tmpdir(), 'spymaster-p2-' + process.pid)
+const REPO = join(os.tmpdir(), 'agentmaster-p2-' + process.pid)
 // A folder that starts life as a NON-repo, for the `git init` cache-invalidation
 // case at the end (check 5).
-const PLAIN = join(os.tmpdir(), 'spymaster-p2-plain-' + process.pid)
+const PLAIN = join(os.tmpdir(), 'agentmaster-p2-plain-' + process.pid)
 const errors = []
 
 function git(args) {
@@ -169,39 +169,61 @@ app.whenReady().then(async () => {
   // already checked out; that fails, worktree:create falls back to
   // isolated:false, and the agent lands in the user's REAL working tree with its
   // previous work stranded in a folder nothing points at any more.
-  const LEGACY_AGENT = 'agent-cccccccc'
-  const legacyShort = LEGACY_AGENT.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)
-  const leaf = basename(REPO) + '-' + legacyShort
-  const legacyPath = join(os.tmpdir(), '.monad-worktrees', leaf)
-  const modernPath = join(os.tmpdir(), '.spymaster-worktrees', leaf)
-  let adopted = { cwd: '', isolated: false }
-  let countBeforeAdopt = 0
-  try {
-    fs.mkdirSync(join(os.tmpdir(), '.monad-worktrees'), { recursive: true })
-    // Stand in for a worktree an older build left behind.
-    git(['worktree', 'add', legacyPath, '-b', 'canvas/' + legacyShort])
-    countBeforeAdopt = worktreeCount()
-    adopted = await win.webContents.executeJavaScript(
-      `window.api.worktree.create(${JSON.stringify(REPO)}, ${JSON.stringify(LEGACY_AGENT)}, 'worktree')`,
-      true
-    )
-  } catch (e) {
-    errors.push('legacy-adopt: ' + e.message)
+  //
+  // The app has been renamed twice over the life of this container, so there is
+  // one legacy container per earlier name and EACH must still be adopted. A
+  // user upgrading from the last release holds `.spymaster-worktrees`; one who
+  // skipped a release holds `.monad-worktrees`. Both are exercised here.
+  const LEGACY_CONTAINERS = [
+    { dir: '.spymaster-worktrees', agent: 'agent-cccccccc' },
+    { dir: '.monad-worktrees', agent: 'agent-eeeeeeee' }
+  ]
+  const legacyResults = []
+  for (const { dir, agent } of LEGACY_CONTAINERS) {
+    const legacyShort = agent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)
+    const leaf = basename(REPO) + '-' + legacyShort
+    const legacyPath = join(os.tmpdir(), dir, leaf)
+    const modernPath = join(os.tmpdir(), '.agentmaster-worktrees', leaf)
+    let adopted = { cwd: '', isolated: false }
+    let countBeforeAdopt = 0
+    try {
+      fs.mkdirSync(join(os.tmpdir(), dir), { recursive: true })
+      // Stand in for a worktree an older build left behind.
+      git(['worktree', 'add', legacyPath, '-b', 'canvas/' + legacyShort])
+      countBeforeAdopt = worktreeCount()
+      adopted = await win.webContents.executeJavaScript(
+        `window.api.worktree.create(${JSON.stringify(REPO)}, ${JSON.stringify(agent)}, 'worktree')`,
+        true
+      )
+    } catch (e) {
+      errors.push('legacy-adopt(' + dir + '): ' + e.message)
+    }
+    // Compared by suffix, not by full path: os.tmpdir() returns the 8.3 short
+    // form on Windows (ADMINI~1) while the app resolves the long one, so a
+    // whole-path equality check fails on two spellings of the same folder. What
+    // matters is that it landed in the LEGACY container under this agent's leaf.
+    const adoptedInPlace = norm(adopted.cwd).endsWith('/' + dir + '/' + leaf.toLowerCase())
+    const noDuplicate = worktreeCount() === countBeforeAdopt && !fs.existsSync(modernPath)
+    // And removal has to reach the adopted location too, or it leaks forever.
+    await win.webContents
+      .executeJavaScript(
+        `window.api.worktree.remove(${JSON.stringify(REPO)}, ${JSON.stringify(agent)})`,
+        true
+      )
+      .catch((e) => errors.push('legacy-remove(' + dir + '): ' + e.message))
+    legacyResults.push({
+      dir,
+      cwd: adopted.cwd,
+      isolated: !!adopted.isolated,
+      adoptedInPlace,
+      noDuplicate,
+      removed: !fs.existsSync(legacyPath)
+    })
   }
-  // Compared by suffix, not by full path: os.tmpdir() returns the 8.3 short form
-  // on Windows (ADMINI~1) while the app resolves the long one, so a whole-path
-  // equality check fails on two spellings of the same folder. What matters is
-  // that it landed in the LEGACY container under this agent's leaf name.
-  const adoptedInPlace = norm(adopted.cwd).endsWith('/.monad-worktrees/' + leaf.toLowerCase())
-  const noDuplicate = worktreeCount() === countBeforeAdopt && !fs.existsSync(modernPath)
-  // And removal has to reach the adopted location too, or it leaks forever.
-  await win.webContents
-    .executeJavaScript(
-      `window.api.worktree.remove(${JSON.stringify(REPO)}, ${JSON.stringify(LEGACY_AGENT)})`,
-      true
-    )
-    .catch((e) => errors.push('legacy-remove: ' + e.message))
-  const legacyRemoved = !fs.existsSync(legacyPath)
+  const adoptedInPlace = legacyResults.every((r) => r.adoptedInPlace)
+  const noDuplicate = legacyResults.every((r) => r.noDuplicate)
+  const legacyRemoved = legacyResults.every((r) => r.removed)
+  const legacyIsolated = legacyResults.every((r) => r.isolated)
 
   console.log('[p2] git detected         : ' + r.info.isGit + ' (branch ' + r.info.branch + ')')
   console.log('[p2] worktree isolated    : ' + r.wt.isolated + ' branch=' + r.wt.branch)
@@ -217,8 +239,14 @@ app.whenReady().then(async () => {
   console.log('[p2] git init takes effect: ' + initFlow.isGitAfterInit)
   console.log('[p2] isolated after init  : ' + initFlow.isolatedAfterInit)
   console.log('[p2] worktree outside proj: ' + initFlow.cwdOutsideProject)
-  console.log('[p2] legacy wt adopted    : ' + adoptedInPlace + ' (' + adopted.cwd + ')')
-  console.log('[p2] legacy wt isolated   : ' + !!adopted.isolated)
+  console.log(
+    '[p2] legacy wt adopted    : ' +
+      adoptedInPlace +
+      ' (' +
+      legacyResults.map((r) => r.dir + '=' + r.cwd).join(', ') +
+      ')'
+  )
+  console.log('[p2] legacy wt isolated   : ' + legacyIsolated)
   console.log('[p2] no duplicate created : ' + noDuplicate)
   console.log('[p2] legacy wt removable  : ' + legacyRemoved)
   console.log('[p2] console errors       : ' + (errors.length ? errors.join(' | ') : 'none'))
@@ -238,7 +266,7 @@ app.whenReady().then(async () => {
     wtCountAfterRemove === 1 &&
     branchGone &&
     adoptedInPlace &&
-    !!adopted.isolated &&
+    legacyIsolated &&
     noDuplicate &&
     legacyRemoved &&
     errors.length === 0
@@ -268,7 +296,7 @@ function cleanup() {
   } catch {
     /* ignore */
   }
-  for (const dir of ['.spymaster-worktrees', '.monad-worktrees']) {
+  for (const dir of ['.agentmaster-worktrees', '.spymaster-worktrees', '.monad-worktrees']) {
     try {
       fs.rmSync(join(os.tmpdir(), dir), { recursive: true, force: true })
     } catch {

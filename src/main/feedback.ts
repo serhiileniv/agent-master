@@ -64,13 +64,13 @@ export async function sendFeedback(input: FeedbackInput): Promise<FeedbackResult
     `${message}\n\n` +
     `— category: ${CATEGORY_LABEL[category]}\n` +
     `— from: ${email || '(not provided)'}\n` +
-    `— app: Spy Master v${version}\n` +
+    `— app: Agent Master v${version}\n` +
     `— platform: ${platform}`
 
   const payload: Record<string, string> = {
     access_key: WEB3FORMS_ACCESS_KEY,
-    subject: `Spy Master feedback — ${CATEGORY_LABEL[category]} (v${version})`,
-    from_name: 'Spy Master',
+    subject: `Agent Master feedback — ${CATEGORY_LABEL[category]} (v${version})`,
+    from_name: 'Agent Master',
     message: body
   }
   // Only set the reply-to when it's a real address; a garbage value makes

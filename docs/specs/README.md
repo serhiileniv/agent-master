@@ -5,7 +5,7 @@ and does in the app — rather than how it is built.
 
 ## Why these exist
 
-Spy Master is built almost entirely by AI agents working from instructions, and reviewed by someone who
+Agent Master is built almost entirely by AI agents working from instructions, and reviewed by someone who
 does not read diffs. That makes the spec the **review surface**: it is the artifact where a wrong
 feature can be caught before it exists, at the point when catching it is nearly free.
 

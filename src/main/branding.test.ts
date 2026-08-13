@@ -28,25 +28,30 @@ describe('app identity', () => {
   const builder = read('electron-builder.yml')
   const pkg = JSON.parse(read('package.json')) as { name: string; description: string }
 
-  it('ships as Spy Master under the spymaster slug, consistently', () => {
-    expect(pkg.name).toBe('spymaster')
+  it('ships as Agent Master under the agentmaster slug, consistently', () => {
+    expect(pkg.name).toBe('agentmaster')
     // productName drives userData, the executable and every artifact filename.
-    expect(builder).toMatch(/^productName: Spy Master$/m)
-    expect(builder).toMatch(/^appId: com\.serhiileniv\.spymaster$/m)
+    expect(builder).toMatch(/^productName: Agent Master$/m)
+    expect(builder).toMatch(/^appId: com\.serhiileniv\.agentmaster$/m)
     // The update feed and the download page have to point at the same repo.
-    expect(builder).toMatch(/^ {2}repo: spymaster$/m)
+    expect(builder).toMatch(/^ {2}repo: agentmaster$/m)
   })
 
-  it('has no Monad-era identity left in the packaging', () => {
-    expect(builder).not.toMatch(/monad/i)
-    expect(pkg.name).not.toMatch(/monad/i)
-    expect(pkg.description).not.toMatch(/monad/i)
+  // The app has been renamed four times. Packaging is the one place where a
+  // leftover old name is not cosmetic: it silently changes the userData
+  // directory, the executable, or an artifact URL.
+  it('has no earlier-era identity left in the packaging', () => {
+    for (const old of [/monad/i, /vectro/i, /spy ?master/i]) {
+      expect(builder).not.toMatch(old)
+      expect(pkg.name).not.toMatch(old)
+      expect(pkg.description).not.toMatch(old)
+    }
   })
 
   it('points the update checker at the renamed repo', () => {
     const update = read('src/main/update.ts')
-    expect(update).toContain('serhiileniv/spymaster')
-    expect(update).not.toMatch(/serhiileniv\/Monad/)
+    expect(update).toContain('serhiileniv/agentmaster')
+    expect(update).not.toMatch(/serhiileniv\/(Monad|spymaster)/i)
   })
 
   // The account handle is `serhiileniv`. A hyphenated `serhii-leniv` spelling
@@ -60,6 +65,8 @@ describe('app identity', () => {
    * latest.yml, and the docs linked `Spy%20Master-*`. Two of the three 404'd, so
    * the download links were dead and electron-updater fetched a file that did
    * not exist. Nothing failed at build time; the release just did not work.
+   *
+   * "Agent Master" has a space in exactly the same place, so this stays.
    */
   it('gives artifacts space-free fixed names, never interpolating productName', () => {
     const names = [...builder.matchAll(/^ {2}artifactName: (.+)$/gm)].map((m) => m[1].trim())
@@ -68,24 +75,24 @@ describe('app identity', () => {
       expect(n).not.toMatch(/\$\{productName\}/)
       // Only electron-builder's own ${arch}/${ext} placeholders may remain.
       expect(n.replace(/\$\{(arch|ext)\}/g, '')).not.toMatch(/\s/)
-      expect(n).toMatch(/^SpyMaster-/)
+      expect(n).toMatch(/^AgentMaster-/)
     }
   })
 
   it('links the docs at the artifact names the build actually produces', () => {
     for (const f of ['README.md', 'docs/RELEASING.md']) {
       const t = read(f)
-      expect(t).not.toMatch(/Spy%20Master-(macOS|Windows|Linux)/)
-      expect(t).not.toMatch(/Spy[ .-]Master-(macOS|Windows|Linux)/)
+      expect(t).not.toMatch(/Agent%20Master-(macOS|Windows|Linux)/)
+      expect(t).not.toMatch(/Agent[ .-]Master-(macOS|Windows|Linux)/)
     }
-    expect(read('README.md')).toContain('download/SpyMaster-Windows-Setup.exe')
+    expect(read('README.md')).toContain('download/AgentMaster-Windows-Setup.exe')
   })
 
   it('uses the real account handle, not the hyphenated one that 404s on Pages', () => {
     for (const f of ['src/main/update.ts', 'electron-builder.yml', 'README.md']) {
       expect(read(f)).not.toMatch(/serhii-leniv/i)
     }
-    expect(read('src/main/update.ts')).toContain('https://serhiileniv.github.io/spymaster')
+    expect(read('src/main/update.ts')).toContain('https://serhiileniv.github.io/agentmaster')
   })
 })
 

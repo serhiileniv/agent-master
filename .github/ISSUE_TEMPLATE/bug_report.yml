@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Spy Master is broken or behaving unexpectedly
+description: Something in Agent Master is broken or behaving unexpectedly
 labels: ["bug"]
 body:
   - type: markdown
@@ -31,7 +31,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Spy Master version
+      label: Agent Master version
       description: Settings → About, or the title bar
       placeholder: v0.1.25
     validations:
@@ -68,7 +68,7 @@ body:
   - type: dropdown
     id: install
     attributes:
-      label: How did you install Spy Master?
+      label: How did you install Agent Master?
       options:
         - Installer from the releases page
         - Built from source

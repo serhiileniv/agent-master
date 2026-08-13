@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * The Spy Master app icon, authored as SVG so it stays editable and
+ * The Agent Master app icon, authored as SVG so it stays editable and
  * re-renderable rather than living as an opaque PNG. `npm run icons` rasterizes
  * what is built here into build/icon.png (Windows/Linux) and build/icon-mac.png.
  *

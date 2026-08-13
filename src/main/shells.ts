@@ -57,7 +57,7 @@ const KNOWN_AGENTS: { id: string; label: string; bins: string[] }[] = [
  * thread forwarding PTY output. Alt-tabbing repeatedly used to pay that every
  * time.
  *
- * The TTL exists so a CLI the user installs while Spy Master is open still shows up
+ * The TTL exists so a CLI the user installs while Agent Master is open still shows up
  * without a restart; it just takes up to a minute.
  *
  * Keyed on the PATH as well as the clock: the background PATH harvest (see
@@ -154,7 +154,7 @@ export function detectShells(exists: (p: string) => boolean = existsSync): Shell
         // tab, all of which spawn login shells. Homebrew's own install docs put
         // `eval "$(brew shellenv)"` in ~/.zprofile — login-only — as do most
         // nvm/conda setups, so a non-login shell never sees /opt/homebrew/bin
-        // and `claude` is missing inside Spy Master while working everywhere else.
+        // and `claude` is missing inside Agent Master while working everywhere else.
         shells.push({ id, label, command, args: [POSIX_LOGIN_FLAG] })
       }
     }

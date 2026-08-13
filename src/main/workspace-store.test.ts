@@ -14,7 +14,7 @@ const dirs: string[] = []
 
 beforeEach(async () => {
   vi.restoreAllMocks()
-  dir = await mkdtemp(join(tmpdir(), 'spymaster-ws-'))
+  dir = await mkdtemp(join(tmpdir(), 'agentmaster-ws-'))
   dirs.push(dir)
   target = join(dir, 'workspaces.json')
 })

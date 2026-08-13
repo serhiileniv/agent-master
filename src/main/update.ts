@@ -2,7 +2,7 @@ import { app, ipcMain, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log/main'
 
-// Installers are published as GitHub Releases on this repo (serhiileniv/spymaster,
+// Installers are published as GitHub Releases on this repo (serhiileniv/agentmaster,
 // public) — its releases/latest is the app's version feed. CI attaches them on
 // every version tag; see RELEASING.md. All update traffic runs in the main
 // process so the renderer never talks to the network and the production CSP
@@ -17,12 +17,12 @@ import log from 'electron-log/main'
 //    signed builds the banner links to the download site instead. To enable
 //    mac later: sign + notarize, add a `zip` target for mac in
 //    electron-builder.yml, and add 'darwin' to canAutoUpdate().
-const RELEASES_API = 'https://api.github.com/repos/serhiileniv/spymaster/releases/latest'
+const RELEASES_API = 'https://api.github.com/repos/serhiileniv/agentmaster/releases/latest'
 // Send users to the download site, not the raw release: it picks the right
 // installer per OS and explains the unsigned-build Gatekeeper/SmartScreen prompt.
 // NOTE: must track the repo name — GitHub Pages URLs do NOT redirect on rename
 // (the old /vectro-site page 404s), unlike the REST API.
-const DOWNLOAD_URL = 'https://serhiileniv.github.io/spymaster'
+const DOWNLOAD_URL = 'https://serhiileniv.github.io/agentmaster'
 
 export interface UpdateInfo {
   current: string
@@ -37,9 +37,9 @@ export type UpdateState =
   | { status: 'error'; message: string }
 
 function canAutoUpdate(): boolean {
-  // SPYMASTER_DEV_UPDATE_CONFIG=<path to dev-app-update.yml> lets a dev run drive
+  // AGENTMASTER_DEV_UPDATE_CONFIG=<path to dev-app-update.yml> lets a dev run drive
   // the real electron-updater against a local feed (see scripts/ e2e harness).
-  if (process.env.SPYMASTER_DEV_UPDATE_CONFIG) return true
+  if (process.env.AGENTMASTER_DEV_UPDATE_CONFIG) return true
   return process.platform === 'win32' && app.isPackaged
 }
 
@@ -76,7 +76,7 @@ export function initAutoUpdate(getWindow: () => BrowserWindow | null): void {
   }
 
   ipcMain.on('update:install', () => {
-    // The canAutoUpdate() guard makes this a no-op under SPYMASTER_FAKE_UPDATE,
+    // The canAutoUpdate() guard makes this a no-op under AGENTMASTER_FAKE_UPDATE,
     // where 'ready' is synthetic and there is nothing real to install.
     if (!downloaded || !canAutoUpdate()) return
     // Silent NSIS reinstall into the same directory, then relaunch.
@@ -85,9 +85,9 @@ export function initAutoUpdate(getWindow: () => BrowserWindow | null): void {
 
   if (!canAutoUpdate()) return
 
-  if (process.env.SPYMASTER_DEV_UPDATE_CONFIG) {
+  if (process.env.AGENTMASTER_DEV_UPDATE_CONFIG) {
     autoUpdater.forceDevUpdateConfig = true
-    autoUpdater.updateConfigPath = process.env.SPYMASTER_DEV_UPDATE_CONFIG
+    autoUpdater.updateConfigPath = process.env.AGENTMASTER_DEV_UPDATE_CONFIG
   }
   // A file logger, not console: in a packaged app stdout goes nowhere, and a
   // failed update is precisely the thing you need a post-mortem for.
@@ -108,7 +108,7 @@ export function initAutoUpdate(getWindow: () => BrowserWindow | null): void {
   autoUpdater.on('error', (e) => {
     // An update must never surface as an app error — log, tell the renderer so
     // the banner falls back to the download-site button, and move on.
-    log.warn('[spymaster] auto-update error:', e?.message ?? e)
+    log.warn('[agentmaster] auto-update error:', e?.message ?? e)
     sendState({ status: 'error', message: String(e?.message ?? e) })
   })
 }
@@ -120,16 +120,16 @@ let downloaded = false
  * null (including on any network/API failure — an update check must never
  * surface an error). On Windows this also kicks off the background download;
  * progress then streams via `update:state`. Dev runs report null; set
- * SPYMASTER_UPDATE_CHECK=1 to test the REST path.
+ * AGENTMASTER_UPDATE_CHECK=1 to test the REST path.
  */
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
-  // Dev-only harness for the update UI: `SPYMASTER_FAKE_UPDATE=9.9.9 npm run dev`
+  // Dev-only harness for the update UI: `AGENTMASTER_FAKE_UPDATE=9.9.9 npm run dev`
   // reports a synthetic newer release AND plays a fake download→ready
   // progression so the banner's whole lifecycle is visible without cutting a
   // release. Ignored in packaged builds.
-  if (!app.isPackaged && process.env.SPYMASTER_FAKE_UPDATE) {
+  if (!app.isPackaged && process.env.AGENTMASTER_FAKE_UPDATE) {
     fakeDownloadFlow()
-    return { current: app.getVersion(), latest: process.env.SPYMASTER_FAKE_UPDATE, url: DOWNLOAD_URL }
+    return { current: app.getVersion(), latest: process.env.AGENTMASTER_FAKE_UPDATE, url: DOWNLOAD_URL }
   }
 
   if (canAutoUpdate()) {
@@ -146,7 +146,7 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
       // with no signal. The REST path answers the only question the banner
       // needs ("is there a newer version?") and degrades to the download-site
       // button, which is the same fallback the 'error' event aims for.
-      log.warn('[spymaster] auto-update check failed, falling back to releases API:', e)
+      log.warn('[agentmaster] auto-update check failed, falling back to releases API:', e)
     }
   }
 
@@ -160,7 +160,7 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
  * silent rather than nag about a problem the user can't act on.
  */
 async function checkViaReleasesApi(): Promise<UpdateInfo | null> {
-  if (!app.isPackaged && process.env.SPYMASTER_UPDATE_CHECK !== '1') return null
+  if (!app.isPackaged && process.env.AGENTMASTER_UPDATE_CHECK !== '1') return null
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 8000)
   try {
@@ -169,32 +169,32 @@ async function checkViaReleasesApi(): Promise<UpdateInfo | null> {
       // fetch implementation's default.
       headers: {
         Accept: 'application/vnd.github+json',
-        'User-Agent': `SpyMaster/${app.getVersion()}`
+        'User-Agent': `AgentMaster/${app.getVersion()}`
       },
       signal: ctrl.signal
     })
     if (!res.ok) {
-      log.warn(`[spymaster] update check failed: HTTP ${res.status} from ${RELEASES_API}`)
+      log.warn(`[agentmaster] update check failed: HTTP ${res.status} from ${RELEASES_API}`)
       return null
     }
     const json = (await res.json()) as { tag_name?: unknown }
     const latest = typeof json.tag_name === 'string' ? json.tag_name.replace(/^v/i, '') : ''
     const current = app.getVersion()
     if (!parseVersion(latest)) {
-      log.warn(`[spymaster] update check: unparsable tag_name ${JSON.stringify(json.tag_name)}`)
+      log.warn(`[agentmaster] update check: unparsable tag_name ${JSON.stringify(json.tag_name)}`)
       return null
     }
     if (!isNewer(latest, current)) return null
     return { current, latest, url: DOWNLOAD_URL }
   } catch (e) {
-    log.warn('[spymaster] update check failed:', e)
+    log.warn('[agentmaster] update check failed:', e)
     return null
   } finally {
     clearTimeout(timer)
   }
 }
 
-/** Dev-only: synthetic downloading→ready progression for SPYMASTER_FAKE_UPDATE. */
+/** Dev-only: synthetic downloading→ready progression for AGENTMASTER_FAKE_UPDATE. */
 function fakeDownloadFlow(): void {
   let percent = 0
   const tick = (): void => {

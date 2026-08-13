@@ -77,7 +77,7 @@ export function focusActiveTerminal(): void {
 // buffering actually happens, not merely that nothing is lost. Never used by
 // the app itself.
 if (typeof window !== 'undefined') {
-  ;(window as unknown as Record<string, unknown>).__spymasterTerminalText = (
+  ;(window as unknown as Record<string, unknown>).__agentmasterTerminalText = (
     id: string
   ): string | null => {
     const t = terminals.get(id)

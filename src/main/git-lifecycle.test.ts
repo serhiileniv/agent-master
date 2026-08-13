@@ -63,7 +63,10 @@ describe('findOrphanWorktrees', () => {
   const repo = join('/home/u', 'proj')
   const mine = worktreeInfo(repo, 'aaaaaaaaaaaa')
   const leftover = worktreeInfo(repo, 'bbbbbbbbbbbb')
-  const legacyLeftover = worktreeInfo(repo, 'cccccccccccc')
+  // One per pre-rename container, so dropping any of them fails a test.
+  const legacyLeftovers = ['cccccccccccc', 'eeeeeeeeeeee']
+    .map((id) => worktreeInfo(repo, id))
+    .map((i, n) => ({ path: i.legacyPaths[n], branch: i.branch }))
 
   /** Porcelain block for one registered worktree. */
   const block = (path: string, branch: string | null): string =>
@@ -71,13 +74,13 @@ describe('findOrphanWorktrees', () => {
 
   const listing = (...blocks: string[]): string => blocks.join('\n')
 
-  it('spares worktrees owned by a live agent, in either container', () => {
+  it('spares worktrees owned by a live agent, in any container', () => {
     const { run } = scripted(({ args }) => {
       if (args[0] === 'worktree' && args[1] === 'list')
         return listing(
           block(repo, 'main'),
           block(mine.path, mine.branch),
-          block(mine.legacyPath, mine.branch)
+          ...mine.legacyPaths.map((p) => block(p, mine.branch))
         )
       return ''
     })
@@ -100,13 +103,13 @@ describe('findOrphanWorktrees', () => {
     })
   })
 
-  it('finds leftovers in both the current and the pre-rename container', () => {
+  it('finds leftovers in the current container and every pre-rename one', () => {
     const { run } = scripted(({ args }) => {
       if (args[0] === 'worktree' && args[1] === 'list')
         return listing(
           block(repo, 'main'),
           block(leftover.path, leftover.branch),
-          block(legacyLeftover.legacyPath, legacyLeftover.branch)
+          ...legacyLeftovers.map((l) => block(l.path, l.branch))
         )
       if (args[0] === 'merge-base') return '' // merged
       if (args[0] === 'status') return '' // clean
@@ -115,7 +118,7 @@ describe('findOrphanWorktrees', () => {
     use(run)
     return findOrphanWorktrees(repo, []).then((orphans) => {
       expect(orphans.map((o) => o.branch).sort()).toEqual(
-        [leftover.branch, legacyLeftover.branch].sort()
+        [leftover.branch, ...legacyLeftovers.map((l) => l.branch)].sort()
       )
       expect(orphans.every((o) => o.hasWork)).toBe(false)
     })
@@ -310,7 +313,7 @@ describe('applyAgentFiles', () => {
   let repo: string
 
   beforeAll(async () => {
-    repo = await mkdtemp(join(tmpdir(), 'spymaster-apply-'))
+    repo = await mkdtemp(join(tmpdir(), 'agentmaster-apply-'))
   })
   afterAll(async () => {
     await rm(repo, { recursive: true, force: true })

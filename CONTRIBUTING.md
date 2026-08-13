@@ -1,13 +1,13 @@
-# Contributing to Spy Master
+# Contributing to Agent Master
 
-Thanks for taking the time to help. Spy Master is a small project and every bug report,
+Thanks for taking the time to help. Agent Master is a small project and every bug report,
 reproduction, or patch genuinely moves it forward.
 
 ## Ways to help
 
-- **Report a bug** — [open an issue](https://github.com/serhiileniv/spymaster/issues/new/choose).
+- **Report a bug** — [open an issue](https://github.com/serhiileniv/agentmaster/issues/new/choose).
   Terminal and PTY bugs are extremely platform-dependent, so please include your OS, the agent
-  CLI you were running, and the Spy Master version from **Settings → About**.
+  CLI you were running, and the Agent Master version from **Settings → About**.
 - **Suggest a feature** — open an issue describing the workflow you're trying to get to. Concrete
   "I was trying to X and had to Y" reports are more useful than feature names.
 - **Send a pull request** — see below.
@@ -18,8 +18,8 @@ You'll need **Node.js + npm** and **git**. No Rust or C++ toolchain is required 
 installs a prebuilt binary, and `.npmrc` pins the Electron ABI it's built against.
 
 ```bash
-git clone https://github.com/serhiileniv/spymaster.git
-cd Spy Master
+git clone https://github.com/serhiileniv/agentmaster.git
+cd Agent Master
 npm install
 npm run dev          # hot-reloading dev build
 ```

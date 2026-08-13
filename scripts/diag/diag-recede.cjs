@@ -20,9 +20,9 @@ const { execFileSync } = require('child_process')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
 const OUT = process.env.RECEDE_OUT || os.tmpdir()
-const REPO = join(os.tmpdir(), 'spymaster-recede-' + process.pid)
+const REPO = join(os.tmpdir(), 'agentmaster-recede-' + process.pid)
 
-app.setPath('userData', join(os.tmpdir(), 'spymaster-recede-ud-' + process.pid))
+app.setPath('userData', join(os.tmpdir(), 'agentmaster-recede-ud-' + process.pid))
 
 function git(args) {
   return execFileSync('git', args, { cwd: REPO, encoding: 'utf8' })

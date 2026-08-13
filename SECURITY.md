@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Spy Master is in active development and ships frequently. Only the **latest release** receives security
+Agent Master is in active development and ships frequently. Only the **latest release** receives security
 fixes — please reproduce on the current version before reporting.
 
 | Version | Supported |
@@ -15,12 +15,12 @@ fixes — please reproduce on the current version before reporting.
 **Please do not open a public issue for a security problem.**
 
 Report it privately through GitHub's
-[private vulnerability reporting](https://github.com/serhiileniv/spymaster/security/advisories/new)
+[private vulnerability reporting](https://github.com/serhiileniv/agentmaster/security/advisories/new)
 (Security → Report a vulnerability). Include:
 
 - What you found and why it's exploitable
 - Steps to reproduce, ideally with a minimal case
-- The Spy Master version, your OS, and the agent CLI involved
+- The Agent Master version, your OS, and the agent CLI involved
 - Any proposed fix, if you have one
 
 You can expect an initial response within a few days. As a solo-maintained project there's no
@@ -29,7 +29,7 @@ notes unless you'd rather stay anonymous.
 
 ## Threat model
 
-Spy Master is a **local desktop application** with no server component, no account system, and no
+Agent Master is a **local desktop application** with no server component, no account system, and no
 telemetry. That shapes what counts as a vulnerability.
 
 **In scope:**
@@ -43,9 +43,9 @@ telemetry. That shapes what counts as a vulnerability.
 
 **Out of scope:**
 
-- **The agent CLIs themselves.** Spy Master spawns `claude`, `codex`, `gemini`, `cursor-agent` and
+- **The agent CLIs themselves.** Agent Master spawns `claude`, `codex`, `gemini`, `cursor-agent` and
   similar tools on your behalf, with your credentials. What those agents do — including running
-  commands and modifying files — is their behaviour, not Spy Master's. Report those upstream.
+  commands and modifying files — is their behaviour, not Agent Master's. Report those upstream.
 - **A user deliberately running a destructive command in a terminal card.** The terminals are real
   PTYs; that's the product.
 - Unsigned builds triggering Gatekeeper or SmartScreen warnings. This is a known gap — code signing
@@ -55,7 +55,7 @@ telemetry. That shapes what counts as a vulnerability.
 
 ## Notes for users
 
-Spy Master runs entirely on your machine and holds no credentials of its own — agents authenticate with
-the CLI logins already on your system. Agent worktrees live in a sibling `.spymaster-worktrees/`
+Agent Master runs entirely on your machine and holds no credentials of its own — agents authenticate with
+the CLI logins already on your system. Agent worktrees live in a sibling `.agentmaster-worktrees/`
 directory next to your repository, and workspace state lives in `workspaces.json` in the app's
 user-data folder. Nothing is transmitted off your machine.

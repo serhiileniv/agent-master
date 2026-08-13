@@ -1,8 +1,8 @@
-# Releasing Spy Master
+# Releasing Agent Master
 
 Installers are built by [`.github/workflows/build.yml`](.github/workflows/build.yml) and
 attached as a **GitHub Release on this repo** — that's what the download site
-(https://serhiileniv.github.io/spymaster) links to. The site itself is GitHub Pages
+(https://serhiileniv.github.io/agentmaster) links to. The site itself is GitHub Pages
 serving this repo's `gh-pages` branch. Everything lives here; there is no
 cross-repo publishing and no extra token: the workflow uses the automatic
 `GITHUB_TOKEN`.
@@ -22,8 +22,8 @@ fixed-name assets to the tag's release:
 
 | Platform                | Asset                      |
 | ----------------------- | -------------------------- |
-| macOS · Apple Silicon   | `SpyMaster-macOS-arm64.dmg`    |
-| Windows · x64           | `SpyMaster-Windows-Setup.exe`  |
+| macOS · Apple Silicon   | `AgentMaster-macOS-arm64.dmg`    |
+| Windows · x64           | `AgentMaster-Windows-Setup.exe`  |
 
 The fixed names (set in [`electron-builder.yml`](electron-builder.yml)) are what make
 the site's `releases/latest/download/<name>` links stable across versions. The site
@@ -41,11 +41,11 @@ signing secrets exist. **No workflow or config edit is needed to switch.**
 **Current mode — unsigned.** Without the secrets, electron-builder skips signing,
 then skips notarization ("app is not signed"), and `scripts/afterPack.cjs` ad-hoc
 signs so the app can launch on Apple Silicon at all. Downloaded copies are
-quarantined and unnotarized, so macOS reports **"Spy Master is damaged and can't be
+quarantined and unnotarized, so macOS reports **"Agent Master is damaged and can't be
 opened"** and the user must run:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Spy Master.app"
+xattr -dr com.apple.quarantine "/Applications/Agent Master.app"
 ```
 
 Right-click → Open does *not* clear that error — it only dismisses the milder
@@ -77,7 +77,7 @@ Producing `MAC_CERT_P12`, on a Mac:
    attached, right-click → Export as `.p12`, and set a password.
 4. Base64 it and copy to the clipboard:
    ```bash
-   base64 -i SpyMaster-DeveloperID.p12 | pbcopy
+   base64 -i AgentMaster-DeveloperID.p12 | pbcopy
    ```
    Paste that as `MAC_CERT_P12`; the export password becomes `MAC_CERT_PASSWORD`.
 
@@ -93,8 +93,8 @@ Notes:
   launching to a blank window rather than as a build failure.
 - To verify a produced build, on a Mac:
   ```bash
-  spctl -a -vvv -t install "/Applications/Spy Master.app"   # expect: accepted, source=Notarized Developer ID
-  xcrun stapler validate "/Applications/Spy Master.app"     # expect: The validate action worked!
+  spctl -a -vvv -t install "/Applications/Agent Master.app"   # expect: accepted, source=Notarized Developer ID
+  xcrun stapler validate "/Applications/Agent Master.app"     # expect: The validate action worked!
   ```
 - Certificates expire after 5 years, and the notarization service rejects builds
   signed with an expired one. Renewal means repeating the export above.

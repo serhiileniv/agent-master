@@ -18,9 +18,10 @@ dist/
 b.out
 
 # Agent worktrees
-.spymaster-worktrees/
+.agentmaster-worktrees/
 # Per-project runtime data (terminal layout) + worktrees, from earlier names.
 # Still read, so still ignored.
+.spymaster-worktrees/
 .monad/
 .monad-worktrees/
 .agent-canvas/

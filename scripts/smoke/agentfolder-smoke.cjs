@@ -16,12 +16,12 @@ const { execFileSync } = require('child_process')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
 app.disableHardwareAcceleration()
-const USERDATA = join(os.tmpdir(), 'spymaster-af-ud-' + process.pid)
+const USERDATA = join(os.tmpdir(), 'agentmaster-af-ud-' + process.pid)
 app.setPath('userData', USERDATA)
 
-const A = join(os.tmpdir(), 'spymaster-af-A-' + process.pid)
-const B = join(os.tmpdir(), 'spymaster-af-B-' + process.pid)
-const WT_CONTAINER = join(os.tmpdir(), '.spymaster-worktrees')
+const A = join(os.tmpdir(), 'agentmaster-af-A-' + process.pid)
+const B = join(os.tmpdir(), 'agentmaster-af-B-' + process.pid)
+const WT_CONTAINER = join(os.tmpdir(), '.agentmaster-worktrees')
 const errors = []
 
 function git(repo, args) {
