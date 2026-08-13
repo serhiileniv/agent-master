@@ -11,39 +11,70 @@
  *   • macOS — the artwork inside Apple's icon grid: an 824x824 squircle centred
  *     on a 1024 canvas, leaving the ~100px margin every native Mac icon has.
  *
- * Every colour is lifted from the app's own tokens in src/renderer/src/styles.css
- * so the icon and the UI are demonstrably the same product. The cigar ember is
- * --accent (#d97a68) and is the only saturated thing in the frame.
+ * THE MARK: a tiled workspace. One full-height pane at full strength beside a
+ * column split in two, held back — three agents running in parallel, and the one
+ * that wants you is the bright one. That is the product's differentiator, so
+ * that is what the icon draws. It replaces a fedora-and-shades figure, which was
+ * a character portrait: a category signal for games and privacy apps, not for a
+ * tool that runs coding agents.
+ *
+ * WHY THE PANES DIVIDE THE TILE RATHER THAN STAND ON IT. An earlier pass drew
+ * three panes bottom-aligned on a shared baseline at different heights, and
+ * rendering it settled the question — shapes sharing a baseline at varying
+ * heights are a column chart, whatever rhythm you give them. Carving the tile up
+ * instead removes the baseline, and it is a truer picture of the app anyway: a
+ * tiled canvas is a space divided, not bars on a floor.
+ *
+ * WHY THE GROUND IS THE SATURATED THING. The previous icon was a dark figure on
+ * a dark tile, which in the dark Dock and taskbar every developer runs had
+ * nothing to be seen against. An icon has to work on ANY background — white,
+ * black, photographic. --accent is mid-luminance, so it clears both ends;
+ * neither the old charcoal nor a cream tile does.
+ *
+ * WHY THERE ARE NO EFFECTS. Drop shadows, glows and fractional strokes do not
+ * survive being downscaled to 16px — they were most of what the old icon was
+ * built from, and they are why it mushed. The only soft thing here is one
+ * diagonal gradient on the ground, plus the contact shadow macOS tiles carry,
+ * which sits under the tile rather than inside the mark.
  */
+
+/** Every value is a token from src/renderer/src/styles.css. */
+const C = {
+  groundLit: '#e3907f', // --accent-2, upper left
+  ground: '#d97a68', // --accent
+  groundDeep: '#b35f4f', // --accent-active, lower right
+  pane: '#f2ece9', // --text
+  cream: '#f2ece9', // alias: the monochrome mark's colour
+  sub1: '#14100f', // --sub-1, the og card's ground
+  sub2: '#1a1514', // --sub-2
+  sub4: '#2b2321', // --sub-4
+  accentInk: '#e6a79b' // --accent-ink, the og tagline
+}
 
 /**
- * The icon is a SILHOUETTE: a near-black figure against a lit warm ground. That
- * value structure — not detail — is what makes it readable at 16px, and it is
- * why the ground is the lighter end of the app's substrate ramp rather than the
- * darker end. A dark figure on a dark tile is what the first pass got wrong.
+ * The drawing is laid out on a 32-unit grid and scaled up, rather than drawn at
+ * 1024 and scaled down. At 16px one unit is half a pixel, so keeping every
+ * position and dimension EVEN puts every edge of every pane on a whole pixel at
+ * 16, 32, 64, 128, 256, 512 and 1024 alike. That is the entire reason the left
+ * pane is 10 units wide and not 9 or 11.
  */
-const C = {
-  lampCore: '#8a6e5d', // the interrogation-lamp hotspot behind the head
-  lampMid: '#4e3e37', // between --sub-4 and the hotspot
-  lampEdge: '#261e1b', // a lifted --sub-4
-  corner: '#151110', // corners drop below the ramp so the tile has weight
+const U = 32
+const S = 1024 / U // 32px per unit
 
-  // The figure sits a long way below the ground in value. Closing that gap is
-  // what made the first two passes read as mud.
-  inkLit: '#171110', // figure, upper-left facing planes
-  ink: '#0c0908', // figure, base
-  inkDeep: '#060505', // figure, shadow side and under the brim
-
-  shirt: '#9c8578',
-  shirtShade: '#63524a',
-
-  cream: '#f2ece9', // --text
-  creamHot: '#f7f3f1', // --ink-strong
-  ember: '#d97a68', // --accent
-  emberHot: '#e3907f', // --accent-2
-  emberRim: '#e6a79b', // --accent-ink
-  amber: '#c9924e' // --status-attention
-}
+/**
+ * The mark, as [x, y, w, h] in grid units. A 4-unit margin all round; a 2-unit
+ * gutter between the panes, matching the gap between real panes on the canvas.
+ * PANES[LIT] is the agent at full strength — it is first in the list because it
+ * is leftmost, which is where the eye lands.
+ */
+const PANES = [
+  [4, 4, 10, 24], // the watched agent: full height
+  [16, 4, 12, 10], // behind it, upper
+  [16, 16, 12, 12] // behind it, lower
+]
+const LIT = 0
+const HELD = 0.6 // the unlit panes, so "needs you" reads as brightness
+const RADIUS = 2 // units
 
 /**
  * Apple's icon corner is a continuous-curvature squircle, not a rounded rect —
@@ -67,191 +98,52 @@ function squirclePath(cx, cy, size, n = 5, steps = 240) {
   return `M${pts.join('L')}Z`
 }
 
-/** Gradients, glows and the brim's cast shadow. Shared by both framings. */
+/** The one gradient in the icon: upper-left lit, lower-right deep. */
 function defs() {
   return `
-  <!-- The ground is a lamp, not a flat fill: brightest just behind the hat, so
-       the silhouette has something to be a silhouette against. -->
-  <radialGradient id="tile" cx="0.5" cy="0.42" r="0.78">
-    <stop offset="0" stop-color="${C.lampCore}"/>
-    <stop offset="0.4" stop-color="${C.lampMid}"/>
-    <stop offset="0.75" stop-color="${C.lampEdge}"/>
-    <stop offset="1" stop-color="${C.corner}"/>
-  </radialGradient>
-
-  <!-- Warm cast from the ember, low and to the right. -->
-  <radialGradient id="bloom" cx="0.7" cy="0.66" r="0.42">
-    <stop offset="0" stop-color="${C.ember}" stop-opacity="0.26"/>
-    <stop offset="0.5" stop-color="${C.ember}" stop-opacity="0.08"/>
-    <stop offset="1" stop-color="${C.ember}" stop-opacity="0"/>
-  </radialGradient>
-
-  <!-- Light comes from the upper left, consistently, on every surface. The
-       figure barely modulates: it is meant to read as one solid mass. -->
-  <linearGradient id="hat" x1="0.12" y1="0" x2="0.8" y2="1">
-    <stop offset="0" stop-color="${C.inkLit}"/>
-    <stop offset="1" stop-color="${C.ink}"/>
-  </linearGradient>
-  <linearGradient id="brim" x1="0.12" y1="0" x2="0.7" y2="1">
-    <stop offset="0" stop-color="${C.inkLit}"/>
-    <stop offset="0.6" stop-color="${C.ink}"/>
-    <stop offset="1" stop-color="${C.inkDeep}"/>
-  </linearGradient>
-  <linearGradient id="band" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="${C.inkDeep}"/>
-    <stop offset="1" stop-color="#050404"/>
-  </linearGradient>
-  <linearGradient id="coat" x1="0.1" y1="0" x2="0.85" y2="1">
-    <stop offset="0" stop-color="${C.inkLit}"/>
-    <stop offset="0.55" stop-color="${C.ink}"/>
-    <stop offset="1" stop-color="${C.inkDeep}"/>
-  </linearGradient>
-  <!-- The jaw catches just enough light to separate the chin from the coat. -->
-  <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="${C.inkDeep}"/>
-    <stop offset="0.6" stop-color="#120c0b"/>
-    <stop offset="1" stop-color="#2c1f19"/>
-  </linearGradient>
-  <linearGradient id="lens" x1="0" y1="0" x2="0.35" y2="1">
-    <stop offset="0" stop-color="${C.creamHot}"/>
-    <stop offset="0.5" stop-color="${C.cream}"/>
-    <stop offset="1" stop-color="#c3b6b0"/>
-  </linearGradient>
-  <linearGradient id="shirt" x1="0" y1="0" x2="0.3" y2="1">
-    <stop offset="0" stop-color="${C.shirt}"/>
-    <stop offset="1" stop-color="${C.shirtShade}"/>
-  </linearGradient>
-  <linearGradient id="cigar" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#7d5f4f"/>
-    <stop offset="1" stop-color="#3a2a23"/>
-  </linearGradient>
-
-  <radialGradient id="emberGlow">
-    <stop offset="0" stop-color="${C.amber}" stop-opacity="0.85"/>
-    <stop offset="0.28" stop-color="${C.ember}" stop-opacity="0.45"/>
-    <stop offset="1" stop-color="${C.ember}" stop-opacity="0"/>
-  </radialGradient>
-  <radialGradient id="emberCore">
-    <stop offset="0" stop-color="#ffd9a8"/>
-    <stop offset="0.45" stop-color="${C.emberHot}"/>
-    <stop offset="1" stop-color="${C.ember}"/>
-  </radialGradient>
-
-  <!-- The brim throws a real shadow onto the face; this is most of why the
-       icon reads as dimensional rather than as a flat sticker.
-       color-interpolation-filters="sRGB" is not optional: SVG filters default to
-       linearRGB, which pushed an olive cast across the whole hat. -->
-  <filter id="brimCast" x="-30%" y="-30%" width="160%" height="200%" color-interpolation-filters="sRGB">
-    <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity="0.8"/>
-  </filter>`
+  <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="${C.groundLit}"/>
+    <stop offset="0.5" stop-color="${C.ground}"/>
+    <stop offset="1" stop-color="${C.groundDeep}"/>
+  </linearGradient>`
 }
 
 /**
- * The agent. Drawn bottom-anchored in a 1024 box: the coat runs off the bottom
- * edge the way a real bust portrait does, rather than floating in the middle.
+ * The mark. Three rounded rects and nothing else — no filter, no stroke, no
+ * gradient. That is what lets it be rasterized to 16px without losing anything,
+ * and branding.test.ts asserts exactly that about this function's output.
  *
- * Order matters — face first, then the brim on top of it, so the brim's cast
- * shadow falls across the eyes and the face genuinely disappears into it.
+ * `color` overrides the pane fill for the monochrome mark; the held-back panes
+ * keep their opacity either way, because losing that loses the "one of these
+ * wants you" reading that is the whole point of the drawing.
  */
-function figure(opts = {}) {
-  // `flat` drops the two soft-alpha effects — the brim's cast shadow and the
-  // ember bloom. They are what gives the icon depth, but in the knockout mark
-  // they resolve to a grey halo in the mask and the silhouette loses its edge.
-  const flat = opts.flat === true
+function panes(color = C.pane) {
+  const out = PANES.map(([x, y, w, h], i) => {
+    // Never let the radius eat a pane: a rect rounded past half its short side
+    // stops being a pane and becomes a pill.
+    const rx = Math.min(RADIUS, w / 2, h / 2) * S
+    const o = i === LIT ? 1 : HELD
+    return `<rect x="${x * S}" y="${y * S}" width="${w * S}" height="${h * S}" rx="${rx}" fill="${color}" fill-opacity="${o}"/>`
+  })
   return `
   <g>
-    <!-- neck -->
-    <path d="M464,640 h96 v96 q-48,26 -96,0 Z" fill="${C.inkDeep}"/>
-
-    <!-- coat: suit shoulders, angular rather than round, running off the bottom -->
-    <path d="M512,716
-             C448,716 378,740 328,772
-             C264,812 224,890 204,1024
-             L820,1024
-             C800,890 760,812 696,772
-             C646,740 576,716 512,716 Z" fill="url(#coat)"/>
-
-    <!-- Shirt as negative space in the coat, notched for the collar. A light V
-         under a dark mass is what says "suit" without drawing a single button. -->
-    <path d="M448,712 L512,860 L576,712 L548,694 L512,762 L476,694 Z" fill="url(#shirt)"/>
-    <path d="M492,760 L532,760 L540,838 L512,864 L484,838 Z" fill="#0d0a09"/>
-    <!-- rim light down the left lapel only: one light source, upper left -->
-    <path d="M448,716 L512,856" stroke="${C.emberRim}" stroke-opacity="0.26" stroke-width="5"
-          fill="none" stroke-linecap="round"/>
-
-    <!-- face, then the shades, then the brim's shadow lands across both -->
-    <path d="M392,440 L632,440 L632,610
-             C632,660 588,690 512,690
-             C436,690 392,660 392,610 Z" fill="url(#face)"/>
-
-    <!-- cigar, clenched right of centre. Drawn before the shades so nothing
-         competes with them for the brightest mark. -->
-    <g>
-      <path d="M556,634 L716,684" stroke="url(#cigar)" stroke-width="30" stroke-linecap="round" fill="none"/>
-      <path d="M562,636 L600,648" stroke="#9a7660" stroke-width="30" opacity="0.45" fill="none"/>
-      ${flat ? '' : '<circle cx="732" cy="689" r="96" fill="url(#emberGlow)"/>'}
-      <circle cx="732" cy="689" r="22" fill="url(#emberCore)"/>
-      <circle cx="728" cy="685" r="8" fill="#ffe6bd" opacity="0.9"/>
-    </g>
-
-    <!-- shades: the two bright marks ARE the icon at 16px, so they are the
-         largest, brightest, highest-contrast thing in the frame. -->
-    <g>
-      <rect x="368" y="512" width="120" height="88" rx="22" fill="url(#lens)"/>
-      <rect x="536" y="512" width="120" height="88" rx="22" fill="url(#lens)"/>
-      <rect x="486" y="540" width="52" height="20" rx="9" fill="${C.cream}"/>
-      <!-- specular streak, the same angle on both lenses -->
-      <path d="M384,596 L428,516 L458,516 L414,596 Z" fill="#ffffff" opacity="0.5"/>
-      <path d="M552,596 L596,516 L626,516 L582,596 Z" fill="#ffffff" opacity="0.5"/>
-    </g>
-
-    <!-- HAT. Drawn last so the brim's cast shadow falls across the face. -->
-    <g${flat ? '' : ' filter="url(#brimCast)"'}>
-      <!-- crown, tall enough to carry the brim, with the fedora's pinch on top -->
-      <path d="M292,376
-               L306,190
-               C310,150 336,126 370,120
-               C424,166 600,166 654,120
-               C688,126 714,150 718,190
-               L732,376 Z" fill="url(#hat)"/>
-      <!-- band -->
-      <path d="M300,286 L724,286 L732,376 L292,376 Z" fill="url(#band)"/>
-      <!-- Brim: the single hard horizontal the whole icon hangs on. Width is
-           ~1.65x the crown — push past that and it stops being a fedora and
-           starts being a flying saucer, which is what the last pass drew. -->
-      <path d="M150,438
-               C150,388 288,350 512,350
-               C736,350 874,388 874,438
-               C874,476 812,502 730,516
-               C668,528 592,544 512,544
-               C432,544 356,528 294,516
-               C212,502 150,476 150,438 Z" fill="url(#brim)"/>
-    </g>
-    <!-- Rim light, one source, upper left. The brim's highlight runs only along
-         the two exposed wings — carried across the middle it draws a line over
-         the crown, which is in front of the brim, not behind it. -->
-    <path d="M186,428 C214,398 252,376 302,362"
-          stroke="${C.emberRim}" stroke-opacity="0.45" stroke-width="7" fill="none" stroke-linecap="round"/>
-    <path d="M722,362 C772,376 810,398 838,428"
-          stroke="${C.emberRim}" stroke-opacity="0.28" stroke-width="7" fill="none" stroke-linecap="round"/>
-    <path d="M307,188 C311,150 337,127 370,121"
-          stroke="${C.emberRim}" stroke-opacity="0.34" stroke-width="7" fill="none" stroke-linecap="round"/>
+    ${out.join('\n    ')}
   </g>`
 }
 
-/** The charcoal ground plus its top-lit edge, clipped to whatever shape wraps it. */
+/** The terracotta ground plus the mark, clipped to whatever shape wraps it. */
 function tileBody(clipId) {
   return `
   <g ${clipId ? `clip-path="url(#${clipId})"` : ''}>
-    <rect x="0" y="0" width="1024" height="1024" fill="url(#tile)"/>
-    <rect x="0" y="0" width="1024" height="1024" fill="url(#bloom)"/>
-    ${figure()}
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#ground)"/>
+    ${panes()}
   </g>`
 }
 
 /**
  * Windows / Linux: full-bleed. No rounding, no inset — the OS supplies neither,
- * so anything we add here is dead space in the taskbar.
+ * so anything we add here is dead space in the taskbar. No contact shadow
+ * either: Windows does not composite icons as objects sitting on a surface.
  */
 function winSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
@@ -262,8 +154,10 @@ function winSvg() {
 
 /**
  * macOS: the artwork inside an 824px squircle on a 1024 canvas, with the soft
- * contact shadow every Mac icon carries. Everything is drawn in the same 1024
- * space and scaled down as one group, so the two icons cannot drift apart.
+ * contact shadow every Mac icon carries. The shadow is under the TILE, not
+ * inside the mark, so it costs the mark nothing when the icon is scaled down.
+ * Everything is drawn in the same 1024 space and scaled down as one group, so
+ * the two icons cannot drift apart.
  */
 function macSvg() {
   const size = 824
@@ -282,37 +176,23 @@ function macSvg() {
   <g filter="url(#dock)">
     <g transform="translate(${inset},${inset}) scale(${scale})">
       ${tileBody('squircle')}
-      <!-- lit top lip: the hairline that makes a Mac tile read as a solid object -->
-      <path d="${squirclePath(512, 512, 1024)}" fill="none"
-            stroke="#ffffff" stroke-opacity="0.10" stroke-width="6"/>
     </g>
   </g>
 </svg>`
 }
 
 /**
- * Single-colour knockout of the figure, on transparent — the header mark for
- * the download site, where the full-colour tile would sink into a dark bar.
+ * Single-colour mark on transparent, for places that need the shape without the
+ * tile. Note the download site's header no longer uses this: the terracotta tile
+ * was chosen precisely because it reads on a dark bar, so the site shows the
+ * real icon rather than a flattened stand-in.
  *
- * Built as a mask rather than by recolouring: everything the figure paints is
- * forced to white (so its alpha becomes the mark's shape), then the shades are
- * painted black back over it to punch them out as holes. Without that the mark
- * is an anonymous blob — the two lenses are what make it read as a face.
+ * No mask is needed any more. The old figure required one to punch the shades
+ * out of a silhouette; three panes are already their own shape.
  */
 function knockoutSvg(color = '#ffffff') {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-    ${defs()}
-    <filter id="whiteout" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
-      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/>
-    </filter>
-    <mask id="knock">
-      <g filter="url(#whiteout)">${figure({ flat: true })}</g>
-      <rect x="368" y="512" width="120" height="88" rx="22" fill="#000"/>
-      <rect x="536" y="512" width="120" height="88" rx="22" fill="#000"/>
-    </mask>
-  </defs>
-  <rect width="1024" height="1024" fill="${color}" mask="url(#knock)"/>
+  ${panes(color)}
 </svg>`
 }
 
@@ -321,28 +201,37 @@ function knockoutSvg(color = '#ffffff') {
  * through a canvas of an explicit size rather than a window capture, it is not
  * clamped by the display the way the previous og-image was (which is why that
  * one ended up 1800px wide instead of a clean multiple).
+ *
+ * The card's ground is the app's substrate, and the icon sits on it as the real
+ * squircle tile — the terracotta is the thing that should catch the eye in a
+ * feed, so it is shown as it actually ships rather than knocked out to cream.
  */
 function ogSvg(wordmarkDataUrl) {
   const W = 2400
   const H = 1260
+  const tile = 460
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
-    <radialGradient id="og" cx="0.5" cy="0.44" r="0.85">
-      <stop offset="0" stop-color="${C.lampMid}"/>
-      <stop offset="0.55" stop-color="${C.lampEdge}"/>
-      <stop offset="1" stop-color="${C.corner}"/>
+    ${defs()}
+    <radialGradient id="card" cx="0.5" cy="0.44" r="0.85">
+      <stop offset="0" stop-color="${C.sub4}"/>
+      <stop offset="0.55" stop-color="${C.sub2}"/>
+      <stop offset="1" stop-color="${C.sub1}"/>
     </radialGradient>
+    <clipPath id="ogSquircle">
+      <path d="${squirclePath(512, 512, 1024)}"/>
+    </clipPath>
   </defs>
-  <rect width="${W}" height="${H}" fill="url(#og)"/>
-  <g transform="translate(${W / 2 - 250},170) scale(0.488)">
-    ${knockoutSvg(C.cream).replace(/^<svg[^>]*>|<\/svg>$/g, '')}
+  <rect width="${W}" height="${H}" fill="url(#card)"/>
+  <g transform="translate(${W / 2 - tile / 2},150) scale(${tile / 1024})">
+    ${tileBody('ogSquircle')}
   </g>
   <image href="${wordmarkDataUrl}" x="${W / 2 - 620}" y="700" width="1240" height="257"/>
-  <text x="${W / 2}" y="1085" text-anchor="middle" fill="${C.emberRim}"
+  <text x="${W / 2}" y="1085" text-anchor="middle" fill="${C.accentInk}"
         font-family="Georgia, serif" font-size="58" font-style="italic">
     Run your AI coding agents in parallel
   </text>
 </svg>`
 }
 
-module.exports = { winSvg, macSvg, knockoutSvg, ogSvg, squirclePath, C }
+module.exports = { winSvg, macSvg, knockoutSvg, ogSvg, panes, squirclePath, C, PANES }
