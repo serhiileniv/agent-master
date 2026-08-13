@@ -33,7 +33,7 @@ npmRebuild: false
 publish:
   provider: github
   owner: serhiileniv
-  repo: agentmaster
+  repo: agent-master
 
 # Ad-hoc sign the macOS app (no paid cert) so Apple Silicon doesn't flag it as
 # "damaged". Runs after packing, before the dmg is built.

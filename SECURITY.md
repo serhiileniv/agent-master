@@ -15,7 +15,7 @@ fixes — please reproduce on the current version before reporting.
 **Please do not open a public issue for a security problem.**
 
 Report it privately through GitHub's
-[private vulnerability reporting](https://github.com/serhiileniv/agentmaster/security/advisories/new)
+[private vulnerability reporting](https://github.com/serhiileniv/agent-master/security/advisories/new)
 (Security → Report a vulnerability). Include:
 
 - What you found and why it's exploitable

@@ -33,8 +33,23 @@ describe('app identity', () => {
     // productName drives userData, the executable and every artifact filename.
     expect(builder).toMatch(/^productName: Agent Master$/m)
     expect(builder).toMatch(/^appId: com\.serhiileniv\.agentmaster$/m)
-    // The update feed and the download page have to point at the same repo.
-    expect(builder).toMatch(/^ {2}repo: agentmaster$/m)
+  })
+
+  /**
+   * The GitHub repo is `agent-master` — HYPHENATED — while the package name and
+   * appId are not. They are separate things and have no reason to agree, but
+   * they read alike, and the rename shipped assuming the repo would be
+   * `agentmaster`. It is not, and unlike an account rename a wrong *repo* slug
+   * in a Pages URL does not redirect: it 404s. That is the same failure the
+   * `serhii-leniv` spelling caused below, so it gets the same guard.
+   */
+  it('points the update feed at the hyphenated repo slug, never the run-together one', () => {
+    for (const f of ['electron-builder.yml', 'src/main/update.ts', 'README.md', 'CONTRIBUTING.md']) {
+      // Only the URL forms — `com.serhiileniv.agentmaster` is the appId and is
+      // correct as it stands.
+      expect(read(f)).not.toMatch(/serhiileniv\/agentmaster|github\.io\/agentmaster/)
+    }
+    expect(builder).toMatch(/^ {2}repo: agent-master$/m)
   })
 
   // The app has been renamed four times. Packaging is the one place where a
@@ -50,7 +65,7 @@ describe('app identity', () => {
 
   it('points the update checker at the renamed repo', () => {
     const update = read('src/main/update.ts')
-    expect(update).toContain('serhiileniv/agentmaster')
+    expect(update).toContain('serhiileniv/agent-master')
     expect(update).not.toMatch(/serhiileniv\/(Monad|spymaster)/i)
   })
 
@@ -92,7 +107,7 @@ describe('app identity', () => {
     for (const f of ['src/main/update.ts', 'electron-builder.yml', 'README.md']) {
       expect(read(f)).not.toMatch(/serhii-leniv/i)
     }
-    expect(read('src/main/update.ts')).toContain('https://serhiileniv.github.io/agentmaster')
+    expect(read('src/main/update.ts')).toContain('https://serhiileniv.github.io/agent-master')
   })
 })
 

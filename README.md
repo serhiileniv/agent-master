@@ -11,10 +11,10 @@
 </p>
 
 <p align="center">
-  <a href="https://serhiileniv.github.io/agentmaster/"><img alt="Download Agent Master" src="https://img.shields.io/badge/Download-Spy%20Master-ff453a?style=flat-square"></a>
-  <a href="https://github.com/serhiileniv/agentmaster/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/serhiileniv/agentmaster?style=flat-square&label=latest&color=ff453a"></a>
-  <a href="https://github.com/serhiileniv/agentmaster/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/serhiileniv/agentmaster/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="https://github.com/serhiileniv/agentmaster/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/serhiileniv/agentmaster?style=flat-square&color=f0b429"></a>
+  <a href="https://serhiileniv.github.io/agent-master/"><img alt="Download Agent Master" src="https://img.shields.io/badge/Download-Agent%20Master-ff453a?style=flat-square"></a>
+  <a href="https://github.com/serhiileniv/agent-master/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/serhiileniv/agent-master?style=flat-square&label=latest&color=ff453a"></a>
+  <a href="https://github.com/serhiileniv/agent-master/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/serhiileniv/agent-master/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="https://github.com/serhiileniv/agent-master/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/serhiileniv/agent-master?style=flat-square&color=f0b429"></a>
   <img alt="macOS and Windows" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows-1f2430?style=flat-square">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-30d158?style=flat-square">
 </p>
@@ -22,7 +22,7 @@
 <p align="center">
   <img alt="Six AI coding agents running in parallel on the Agent Master stage, each in its own git worktree" src="assets/demo.gif" width="880">
   <br>
-  <sub><a href="https://github.com/serhiileniv/agentmaster/blob/main/assets/demo.mp4">▶ Watch the full demo</a></sub>
+  <sub><a href="https://github.com/serhiileniv/agent-master/blob/main/assets/demo.mp4">▶ Watch the full demo</a></sub>
 </p>
 
 ---
@@ -52,8 +52,8 @@ service — just the app and the tools you point it at.
 
 | Platform | Download |
 | --- | --- |
-| **macOS** (Apple Silicon) | [AgentMaster&#8209;macOS&#8209;arm64.dmg](https://github.com/serhiileniv/agentmaster/releases/latest/download/AgentMaster-macOS-arm64.dmg) |
-| **Windows** (x64) | [AgentMaster&#8209;Windows&#8209;Setup.exe](https://github.com/serhiileniv/agentmaster/releases/latest/download/AgentMaster-Windows-Setup.exe) |
+| **macOS** (Apple Silicon) | [AgentMaster&#8209;macOS&#8209;arm64.dmg](https://github.com/serhiileniv/agent-master/releases/latest/download/AgentMaster-macOS-arm64.dmg) |
+| **Windows** (x64) | [AgentMaster&#8209;Windows&#8209;Setup.exe](https://github.com/serhiileniv/agent-master/releases/latest/download/AgentMaster-Windows-Setup.exe) |
 
 > [!IMPORTANT]
 > **macOS needs one extra command on first launch.** Agent Master isn't signed with a paid Apple
@@ -67,7 +67,7 @@ service — just the app and the tools you point it at.
 > Windows shows a comparable one-time SmartScreen prompt (**More info → Run anyway**).
 > Signing and notarization are on the roadmap.
 
-Older versions and install notes live on **[the download page](https://serhiileniv.github.io/agentmaster/)**.
+Older versions and install notes live on **[the download page](https://serhiileniv.github.io/agent-master/)**.
 Agent Master checks for updates on launch and tells you when one's ready.
 
 ## Quick start
@@ -88,7 +88,7 @@ Agent Master checks for updates on launch and tells you when one's ready.
 - **[Changelog](docs/CHANGELOG.md)** — what changed in each release
 
 Agent Master is in active development and every report helps —
-[open an issue](https://github.com/serhiileniv/agentmaster/issues/new/choose) with bugs or feature
+[open an issue](https://github.com/serhiileniv/agent-master/issues/new/choose) with bugs or feature
 requests. Found a security problem? Report it privately via [SECURITY.md](SECURITY.md).
 
 ## License
