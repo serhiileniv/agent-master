@@ -13,7 +13,7 @@ let root: string
 let outside: string
 
 beforeAll(async () => {
-  const base = await mkdtemp(join(tmpdir(), 'spymaster-files-'))
+  const base = await mkdtemp(join(tmpdir(), 'agentmaster-files-'))
   root = join(base, 'scope')
   outside = base
   await mkdir(root)

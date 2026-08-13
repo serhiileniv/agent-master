@@ -29,11 +29,11 @@ const { execFileSync } = require('child_process')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
 app.disableHardwareAcceleration()
-app.setPath('userData', join(os.tmpdir(), 'spymaster-offscreen-ud-' + process.pid))
+app.setPath('userData', join(os.tmpdir(), 'agentmaster-offscreen-ud-' + process.pid))
 
-const A = join(os.tmpdir(), 'spymaster-offscreen-A-' + process.pid)
-const B = join(os.tmpdir(), 'spymaster-offscreen-B-' + process.pid)
-const WT_CONTAINER = join(os.tmpdir(), '.spymaster-worktrees')
+const A = join(os.tmpdir(), 'agentmaster-offscreen-A-' + process.pid)
+const B = join(os.tmpdir(), 'agentmaster-offscreen-B-' + process.pid)
+const WT_CONTAINER = join(os.tmpdir(), '.agentmaster-worktrees')
 const errors = []
 
 function git(repo, args) {
@@ -83,7 +83,7 @@ const wsA = `${store}.liveWorkspaces.find(w=>w.defaultPath===${JSON.stringify(A)
  * and in order, the moment the pane is back". That is exactly what the buffer
  * records.
  */
-const bufferText = (id) => `window.__spymasterTerminalText(${JSON.stringify(id)})`
+const bufferText = (id) => `window.__agentmasterTerminalText(${JSON.stringify(id)})`
 
 /**
  * Poll `check` until it returns truthy, or give up after `ms`.

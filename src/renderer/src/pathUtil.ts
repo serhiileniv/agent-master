@@ -5,7 +5,7 @@
  * folder dialog, saved JSON from an older build, and hand-typed values. On
  * Windows `D:\repo`, `D:/repo` and `D:\repo\` are the same folder, but `===`
  * says otherwise — and dedupe checks built on `===` let the same repo open as
- * two tabs whose agents then fight over one `.spymaster-worktrees` container.
+ * two tabs whose agents then fight over one `.agentmaster-worktrees` container.
  */
 
 /** Canonical form for comparison only — never display or pass this to the OS. */

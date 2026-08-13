@@ -16,12 +16,12 @@ const { execFileSync } = require('child_process')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
 
 app.disableHardwareAcceleration()
-const USERDATA = join(os.tmpdir(), 'spymaster-wsp-ud-' + process.pid)
+const USERDATA = join(os.tmpdir(), 'agentmaster-wsp-ud-' + process.pid)
 app.setPath('userData', USERDATA)
 
-const A = join(os.tmpdir(), 'spymaster-wsp-A-' + process.pid)
-const GONE = join(os.tmpdir(), 'spymaster-wsp-GONE-' + process.pid)
-const WT_CONTAINER = join(os.tmpdir(), '.spymaster-worktrees')
+const A = join(os.tmpdir(), 'agentmaster-wsp-A-' + process.pid)
+const GONE = join(os.tmpdir(), 'agentmaster-wsp-GONE-' + process.pid)
+const WT_CONTAINER = join(os.tmpdir(), '.agentmaster-worktrees')
 const STORE_FILE = join(USERDATA, 'workspaces.json')
 const errors = []
 
@@ -131,7 +131,7 @@ app.whenReady().then(async () => {
   // Stop the renderer persisting first: relaunch() reloads the page, and the
   // app's flush-on-unload would otherwise rewrite the file we're about to delete
   // (correct app behaviour — it's how a quit keeps the last layout).
-  await run('window.__spymasterDisablePersist()')
+  await run('window.__agentmasterDisablePersist()')
   fs.rmSync(STORE_FILE, { force: true })
   await run(
     `localStorage.setItem('vectro.openWorkspaces', JSON.stringify({paths:[${JSON.stringify(A)}],active:${JSON.stringify(A)}}))`

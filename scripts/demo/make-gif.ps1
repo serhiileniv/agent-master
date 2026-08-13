@@ -7,7 +7,7 @@
 $ErrorActionPreference = 'Stop'
 
 $repo   = 'D:\IT\Projects\agent-canvas'
-$demo   = Join-Path $env:TEMP 'spymaster-demo'
+$demo   = Join-Path $env:TEMP 'agentmaster-demo'
 $frames = Join-Path $demo 'frames'
 $out    = Join-Path $repo 'assets\demo.gif'
 $ff     = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\ffmpeg.exe'

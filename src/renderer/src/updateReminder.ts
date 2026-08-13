@@ -5,7 +5,7 @@
 // firmer. "How long behind" is measured from the moment THIS install first saw
 // the new version, persisted here so it survives restarts.
 
-const FIRST_SEEN_PREFIX = 'vectro.update.firstSeen.' // legacy prefix kept (Spy Master rename)
+const FIRST_SEEN_PREFIX = 'vectro.update.firstSeen.' // legacy prefix kept (Agent Master rename)
 
 export type UpdateLevel = 'info' | 'recommended' | 'urgent'
 
@@ -41,7 +41,7 @@ export function reminderTone(version: string, now: number = Date.now()): Reminde
 
 /** The banner headline, escalating with how long the update has been pending. */
 export function reminderHeadline(u: UpdateInfo, tone: ReminderTone): string {
-  const v = `Spy Master ${u.latest}`
+  const v = `Agent Master ${u.latest}`
   switch (tone.level) {
     case 'urgent':
       return `${v} has been available for over a week — you're on ${u.current}. Please update.`

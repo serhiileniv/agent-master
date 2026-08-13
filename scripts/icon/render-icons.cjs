@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * Rasterizes the Spy Master icon (scripts/icon/art.cjs) into the PNGs that
+ * Rasterizes the Agent Master icon (scripts/icon/art.cjs) into the PNGs that
  * electron-builder and the README consume. Run with `npm run icons`.
  *
  * Why a canvas inside the page rather than capturePage(): a BrowserWindow is
@@ -114,7 +114,7 @@ app.whenReady().then(async () => {
     write(join(BUILD, 'icon-mac.png'), macIcon[1024], 1024, 1024)
 
     const lora = fs.readFileSync(join(FONTS, 'lora-var.woff2')).toString('base64')
-    const wm = await run(WORDMARK, lora, 'Spy Master')
+    const wm = await run(WORDMARK, lora, 'Agent Master')
     write(WORDMARK_OUT, wm.url, wm.w, wm.h)
     console.log(`[icons] wordmark aspect-ratio: ${wm.w} / ${wm.h}`)
   } catch (e) {

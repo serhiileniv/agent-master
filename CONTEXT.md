@@ -1,20 +1,20 @@
 # CONTEXT.md — domain glossary
 
-The vocabulary of Spy Master, as the code actually uses it. Use these terms exactly. Where two names
+The vocabulary of Agent Master, as the code actually uses it. Use these terms exactly. Where two names
 exist for one concept, this file names the winner.
 
 This is a **descriptive** document: it records the language in the codebase today, including the
 inconsistencies. It is not a rename plan. See [CLAUDE.md](CLAUDE.md) for working rules and
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together.
 
-Spy Master has been renamed three times — **Vectro → agent-canvas → Monad → Spy Master**. Earlier
-names survive in identifiers, storage keys, and git branch names. That is deliberate: changing them
-would orphan existing users' data.
+Agent Master has been renamed four times — **Vectro → agent-canvas → Monad → Spy Master → Agent
+Master**. Earlier names survive in identifiers, storage keys, and git branch names. That is
+deliberate: changing them would orphan existing users' data.
 
-The Spy Master rename was a **clean break** on app identity: new `appId`, new `productName`, and
-therefore a new userData directory. Nothing is migrated forward from Monad, and the one-shot
-Vectro→Monad migration was removed with it. What was *not* broken is anything already written into
-a user's own repo — see the frozen names below.
+The Agent Master rename, like the Spy Master one before it, was a **clean break** on app identity:
+new `appId`, new `productName`, and therefore a new userData directory. Nothing is migrated forward
+from Spy Master. What was *not* broken is anything already written into a user's own repo — see the
+frozen names below.
 
 ---
 
@@ -54,7 +54,7 @@ An installed coding-agent binary — Claude Code, Codex, Gemini. Entirely distin
 A `git worktree` checkout giving one agent an isolated branch. Identified by **(repoRoot, agentId)** —
 nothing is stored, the location is derived:
 
-- **container** — `<parent-of-repo>/.spymaster-worktrees`, a *sibling* of the repo so the agent never
+- **container** — `<parent-of-repo>/.agentmaster-worktrees`, a *sibling* of the repo so the agent never
   sees nested worktrees as untracked. Shared by all repos with the same parent.
 - **worktree path** — `<container>/<repoName>-<short12>`
 - **branch** — `canvas/<short12>`, where `short12` is 12 alphanumeric chars of the agent's UUID
@@ -145,11 +145,11 @@ spread them into new code either.**
 |---|---|---|
 | **canvas** | `PersistedCanvas`, `CANVAS_DIR = '.monad'` | The old name for the Stage/workspace surface. Renderer state, CSS, and user-visible copy were renamed to **stage** (`stageW`/`stageH`, `setStageSize`, `.app__stage`); what survives is tied to the on-disk `canvas.json` format and must not be renamed. |
 | **`canvas/` branch prefix** | Every worktree branch: `canvas/<short12>` | User-visible in git. The renderer strips it via `displayBranch()`. Worktree removal is *gated* on this prefix — changing it would strand existing branches. |
-| **`vectro.`** | Every localStorage key | Frozen since the Vectro rename. Left alone through the Spy Master rename too: the clean break gives a fresh userData directory, so these start empty anyway and renaming them would be churn against keys three files document as frozen. |
+| **`vectro.`** | Every localStorage key | Frozen since the Vectro rename, and left alone through every rename since: each clean break gives a fresh userData directory, so these start empty anyway and renaming them would be churn against keys three files document as frozen. |
 | **`vec-`** | CSS class prefix, ~100 occurrences | Cosmetic, but a bulk rename is churn with no user benefit. |
 | **project** | `api.project.*`, `projectPath` params, `ProjectRef`, `ProjectBar.tsx`, `useActiveProjectPath/Name` | **Mixed.** Current when it means "a folder on disk" or a recents entry. Legacy when it means the workspace. |
-| **`.monad/canvas.json`** | Per-project legacy save file | Read once to migrate old users, then ignored. There is deliberately **no** `project:save` handler. Kept at the *Monad* spelling through the Spy Master rename: nothing writes it, so renaming it would point the migration at a folder that can never exist. |
-| **`.monad-worktrees/`** | Pre-rename worktree container | New worktrees go to `.spymaster-worktrees/`, but git registers worktrees by absolute path inside the user's `.git`, so pre-rename checkouts are still there. `worktreeContainers()` returns both; `createWorktree` adopts a legacy worktree in place, and orphan cleanup whitelists both containers and nothing else. |
+| **`.monad/canvas.json`** | Per-project legacy save file | Read once to migrate old users, then ignored. There is deliberately **no** `project:save` handler. Kept at the *Monad* spelling through every rename since: nothing writes it, so renaming it would point the migration at a folder that can never exist. |
+| **`.spymaster-worktrees/`, `.monad-worktrees/`** | Pre-rename worktree containers, one per earlier name | New worktrees go to `.agentmaster-worktrees/`, but git registers worktrees by absolute path inside the user's `.git`, so pre-rename checkouts are still there. `worktreeContainers()` returns all three; `createWorktree` adopts a legacy worktree in place, and orphan cleanup whitelists exactly those containers and nothing else. Every rename appends here; nothing is removed. |
 | **`'preview' \| 'free'` layout modes** | `PersistedCanvas.layoutMode` in type defs | Dead. Live `LayoutMode` is `'grid' \| 'columns'`; hydration coerces anything non-`'columns'` to `'grid'`. |
 
 ---
@@ -179,8 +179,8 @@ New channels should follow the regular convention.
 |---|---|---|
 | `userData/workspaces.json` | `PersistedWorkspaces { version, activeId, workspaces[] }` — the whole tab set | **Current single source of truth.** Atomic write-and-rename, serialized through a save chain, so a crash mid-write cannot corrupt it. |
 | `<project>/.monad/canvas.json` | `PersistedCanvas` — one canvas per project | Legacy, read-only. Migrated once, then ignored; files are deliberately left on disk as a fallback. |
-| `<parent>/.spymaster-worktrees/` | Worktree container | Current |
-| `<parent>/.monad-worktrees/` | Pre-rename worktree container | Legacy, still adopted and still cleaned |
+| `<parent>/.agentmaster-worktrees/` | Worktree container | Current |
+| `<parent>/.spymaster-worktrees/`, `<parent>/.monad-worktrees/` | Pre-rename worktree containers | Legacy, still adopted and still cleaned |
 | localStorage `vectro.*` | `settings`, `filePanelWidth`, `recent`, `openWorkspaces` (legacy), `update.firstSeen.<version>` | Current data, frozen key names |
 
 Note `PersistedWorkspace.path` is the pre-per-agent-folders name for `defaultPath`, kept read-only

@@ -5,11 +5,11 @@
 // so a "-" (ad-hoc) signature is what makes an unsigned build runnable on the machine
 // that produced it. It does NOT get a downloaded copy past Gatekeeper — a .dmg fetched
 // from the web carries com.apple.quarantine and an ad-hoc signature isn't notarized, so
-// macOS reports "Spy Master is damaged and can't be opened." Right-click -> Open does not
+// macOS reports "Agent Master is damaged and can't be opened." Right-click -> Open does not
 // clear that one (it only dismisses the milder "unidentified developer" dialog); the
 // user has to strip the quarantine flag, which is what the README and download page say:
 //
-//   xattr -dr com.apple.quarantine /Applications/Spy Master.app
+//   xattr -dr com.apple.quarantine /Applications/Agent Master.app
 //
 // Why it stands down when a real cert is present: an ad-hoc signature would replace the
 // Developer ID one and silently produce a build that cannot be notarized. electron-builder
@@ -36,7 +36,7 @@ exports.default = async function afterPack(context) {
     return
   }
 
-  const appName = context.packager.appInfo.productFilename // "Spy Master"
+  const appName = context.packager.appInfo.productFilename // "Agent Master"
   const appPath = path.join(context.appOutDir, `${appName}.app`)
   console.log(`  • ad-hoc signing  ${appPath}  (unsigned build — will need xattr on install)`)
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {

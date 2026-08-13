@@ -1,11 +1,11 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/serhiileniv/spymaster/security/advisories/new
+    url: https://github.com/serhiileniv/agentmaster/security/advisories/new
     about: Please report security issues privately, not as a public issue.
   - name: Download and install notes
-    url: https://serhiileniv.github.io/spymaster/
+    url: https://serhiileniv.github.io/agentmaster/
     about: Installers, older versions, and Gatekeeper/SmartScreen instructions.
   - name: Build and contribute
-    url: https://github.com/serhiileniv/spymaster/blob/main/CONTRIBUTING.md
-    about: Running Spy Master from source, the test suites, and PR guidelines.
+    url: https://github.com/serhiileniv/agentmaster/blob/main/CONTRIBUTING.md
+    about: Running Agent Master from source, the test suites, and PR guidelines.

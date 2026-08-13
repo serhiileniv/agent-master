@@ -17,7 +17,7 @@
       unpacked from the asar. Library validation refuses to load a .node signed by
       a different team, which is exactly our case.
 
-    Deliberately NOT sandboxed: Spy Master opens arbitrary user repos and spawns agent
+    Deliberately NOT sandboxed: Agent Master opens arbitrary user repos and spawns agent
     CLIs from the user's PATH. com.apple.security.app-sandbox would break both.
   -->
   <key>com.apple.security.cs.allow-jit</key>

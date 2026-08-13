@@ -40,7 +40,7 @@ import { sendFeedback, FEEDBACK_EMAIL, type FeedbackInput, type FeedbackCategory
 /** Per-project dir holding canvas.json. Legacy: still read for the one-time
  *  migration into the app-data store, and still written by older versions.
  *
- *  FROZEN at the old name through the Spy Master rename, deliberately. Nothing
+ *  FROZEN at the old name through the Agent Master rename, deliberately. Nothing
  *  writes this any more (there is no project:save), so it is a pure read of what
  *  older builds left on disk — renaming it would point the migration at a folder
  *  that by definition can never exist, silently losing the canvas of every user
@@ -265,13 +265,13 @@ export function registerIpc(
     const bodyLines = [
       (input?.message ?? '').trim(),
       '',
-      `— app: Spy Master v${version}`,
+      `— app: Agent Master v${version}`,
       `— platform: ${process.platform} ${process.arch}`
     ]
     if (input?.email) bodyLines.splice(1, 0, `— from: ${input.email}`)
     const url =
       `mailto:${FEEDBACK_EMAIL}` +
-      `?subject=${encodeURIComponent(`Spy Master feedback — ${label} (v${version})`)}` +
+      `?subject=${encodeURIComponent(`Agent Master feedback — ${label} (v${version})`)}` +
       `&body=${encodeURIComponent(bodyLines.join('\n'))}`
     void shell.openExternal(url)
     return true
@@ -415,7 +415,7 @@ export function registerIpc(
       // the global uncaughtException guard would catch — and would leave
       // fileWatcher pointing at a dead watcher for file:unwatch to close.
       fileWatcher.on('error', (err) => {
-        console.error('[spymaster] file watcher error:', err)
+        console.error('[agentmaster] file watcher error:', err)
         closeFileWatcher()
       })
     } catch {
@@ -543,7 +543,7 @@ export function registerIpc(
     'notify:agent',
     (_e, { id, title, body }: { id: string; title: string; body: string }) => {
       if (!Notification.isSupported()) return false
-      const n = new Notification({ title: title || 'Spy Master', body })
+      const n = new Notification({ title: title || 'Agent Master', body })
       n.on('click', () => {
         const w = getWindow()
         if (w && !w.isDestroyed()) {

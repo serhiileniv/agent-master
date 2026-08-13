@@ -7,7 +7,7 @@ import { join } from 'path'
  * macOS/Linux GUI apps inherit launchd's minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin)
  * and never source the user's rc files. Homebrew, nvm/fnm/volta shims, ~/.local/bin
  * and ~/.claude/local are all invisible, so agent CLIs look "not installed" when
- * Spy Master is opened from Finder/Dock but work fine when opened from a terminal.
+ * Agent Master is opened from Finder/Dock but work fine when opened from a terminal.
  *
  * We recover the real PATH by asking the login shell for it, then union in the
  * well-known install dirs as a backstop for when that fails or times out.
@@ -30,7 +30,7 @@ import { join } from 'path'
  *    catch a machine that has genuinely changed since.
  */
 
-const SENTINEL = '__SPYMASTER_PATH__'
+const SENTINEL = '__AGENTMASTER_PATH__'
 
 /** Well-known agent-CLI install dirs, used when the shell harvest comes up short. */
 function fallbackDirs(): string[] {

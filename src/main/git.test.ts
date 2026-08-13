@@ -35,13 +35,13 @@ describe('worktreeInfo', () => {
     const info = worktreeInfo('/home/u/proj', 'abcdef01-2345-6789-abcd-ef0123456789')
     // Nested worktrees would show up as untracked files to the agent itself.
     expect(info.path.startsWith('/home/u/proj')).toBe(false)
-    expect(info.container.replace(/\\/g, '/')).toBe('/home/u/.spymaster-worktrees')
+    expect(info.container.replace(/\\/g, '/')).toBe('/home/u/.agentmaster-worktrees')
   })
 
   it('derives branch and path from the same 12-char id, stripped of dashes', () => {
     const info = worktreeInfo('/home/u/proj', 'abcdef01-2345-6789')
     expect(info.branch).toBe('canvas/abcdef012345')
-    expect(info.path.replace(/\\/g, '/')).toBe('/home/u/.spymaster-worktrees/proj-abcdef012345')
+    expect(info.path.replace(/\\/g, '/')).toBe('/home/u/.agentmaster-worktrees/proj-abcdef012345')
   })
 
   it('is deterministic — the same agent always resolves to the same worktree', () => {
@@ -61,22 +61,34 @@ describe('worktreeInfo', () => {
   // Forget them and a restored agent can neither find its checkout nor create a
   // new one (the branch is already checked out), and cleanup stops recognising
   // its own leftovers. This is the test that fails if legacy support is dropped.
-  it('still knows the pre-rename container, and it is a distinct path', () => {
+  // The app has been renamed twice over the life of this container, so there is
+  // one legacy path per earlier name — not just the most recent one.
+  it('still knows every pre-rename container, each a distinct path', () => {
     const info = worktreeInfo('/home/u/proj', 'abcdef01-2345-6789')
-    expect(info.legacyPath.replace(/\\/g, '/')).toBe('/home/u/.monad-worktrees/proj-abcdef012345')
-    expect(info.legacyPath).not.toBe(info.path)
-    // Same leaf name in both, so one agent maps onto exactly one folder either side.
-    expect(info.legacyPath.split(/[\\/]/).pop()).toBe(info.path.split(/[\\/]/).pop())
+    expect(info.legacyPaths.map((p) => p.replace(/\\/g, '/'))).toEqual([
+      '/home/u/.spymaster-worktrees/proj-abcdef012345',
+      '/home/u/.monad-worktrees/proj-abcdef012345'
+    ])
+    for (const legacy of info.legacyPaths) {
+      expect(legacy).not.toBe(info.path)
+      // Same leaf name throughout, so one agent maps onto exactly one folder
+      // in whichever container it happens to live.
+      expect(legacy.split(/[\\/]/).pop()).toBe(info.path.split(/[\\/]/).pop())
+    }
   })
 })
 
 // The destructive paths (orphan detection and removal) are gated on this list.
-// It must cover the legacy container — or pre-rename leftovers become
-// uncollectable — and must never grow beyond the two known containers.
+// It must cover every legacy container — or pre-rename leftovers become
+// uncollectable — and must never grow beyond the known containers.
 describe('worktreeContainers', () => {
   it('covers exactly the current and pre-rename containers, as siblings of the repo', () => {
     const got = worktreeContainers('/home/u/proj').map((c) => c.replace(/\\/g, '/'))
-    expect(got).toEqual(['/home/u/.spymaster-worktrees', '/home/u/.monad-worktrees'])
+    expect(got).toEqual([
+      '/home/u/.agentmaster-worktrees',
+      '/home/u/.spymaster-worktrees',
+      '/home/u/.monad-worktrees'
+    ])
   })
 
   it('never returns a path inside the repo itself', () => {

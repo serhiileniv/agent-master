@@ -13,7 +13,7 @@ const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.
 
 app.disableHardwareAcceleration()
 
-const TMP = join(os.tmpdir(), 'spymaster-smoke-' + process.pid)
+const TMP = join(os.tmpdir(), 'agentmaster-smoke-' + process.pid)
 fs.mkdirSync(TMP, { recursive: true })
 
 // Stand in for a canvas.json left behind by a pre-workspaces build. The app no

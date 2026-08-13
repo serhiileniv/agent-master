@@ -29,7 +29,7 @@ export default function Home(): JSX.Element {
             so it inherits the sheen gradient and follows the theme colour. The
             text stays for screen readers and window/page titles. */}
         <h1 className="home__wordmark">
-          <span className="sr-only">Spy Master</span>
+          <span className="sr-only">Agent Master</span>
         </h1>
         <p className="home__tag">
           Run your AI coding agents in parallel.

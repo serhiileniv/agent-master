@@ -93,7 +93,7 @@ const SHEET = `async (winSvgText, macSvgText) => {
   const GREY = '#3a3a3e'
 
   band(0, 74, '#0e0e10')
-  text('SPY MASTER - app icon at every size it ships at', W / 2, 37, '#e9e4e1', CAP, 'center')
+  text('AGENT MASTER - app icon at every size it ships at', W / 2, 37, '#e9e4e1', CAP, 'center')
 
   let y = 74
   band(y, BAND, DARK)
