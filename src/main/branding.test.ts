@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
+import { createRequire } from 'module'
 
 /**
  * App identity is spread across three files that have to agree, and the icons
@@ -112,5 +113,87 @@ describe('app icons', () => {
     // reflow while the mask loads; if the asset is re-rendered at a different
     // size, that rule has to move with it.
     expect(read('src/renderer/src/styles.css')).toContain(`aspect-ratio: ${width} / ${height}`)
+  })
+})
+
+/**
+ * The artwork itself. The PNGs above only prove a file of the right size exists
+ * — they would pass just as happily with the icon that was replaced here, which
+ * was illegible at 16px and invisible in a dark dock. These assert the
+ * properties that made the new one work, because every one of them is a mistake
+ * this icon has already made once.
+ */
+interface Art {
+  winSvg: () => string
+  panes: (color?: string) => string
+  PANES: number[][]
+  C: Record<string, string>
+}
+const art = createRequire(import.meta.url)(join(ROOT, 'scripts/icon/art.cjs')) as Art
+
+describe('icon artwork', () => {
+  const mark = art.panes()
+  const rects = [...mark.matchAll(/<rect\b[^>]*\/>/g)].map((m) => m[0])
+  const attr = (r: string, name: string): number => Number(new RegExp(`${name}="([\\d.]+)"`).exec(r)?.[1])
+
+  it('draws three panes with exactly one at full strength', () => {
+    expect(rects).toHaveLength(3)
+    // The lit pane IS the meaning: three agents, one wants you. Light every
+    // pane equally and the icon says nothing the app doesn't already say.
+    const lit = rects.filter((r) => /fill-opacity="1"/.test(r))
+    expect(lit).toHaveLength(1)
+  })
+
+  it('carries no effect that would mush when downscaled to 16px', () => {
+    // The icon this replaced was built from a drop shadow, two radial glows and
+    // 7px rim strokes. That is why it survived 1024px and died in the taskbar.
+    // Flat fill-opacity is fine and load-bearing — it is how the unlit panes
+    // are held back. What is banned is anything the rasterizer has to blur.
+    for (const banned of ['filter', 'feDropShadow', 'stroke', 'Gradient']) {
+      expect(mark).not.toContain(banned)
+    }
+    // The Windows master is full-bleed, so it has nothing to cast a shadow onto.
+    expect(art.winSvg()).not.toContain('feDropShadow')
+  })
+
+  it('puts every pane edge on a whole pixel, down to 16px', () => {
+    // Laid out on a 32-unit grid, so at 16px one unit is half a pixel. Odd
+    // values would land edges mid-pixel and blur exactly where legibility is
+    // scarcest.
+    expect(art.PANES).toHaveLength(3)
+    for (const rect of art.PANES) {
+      expect(rect).toHaveLength(4)
+      for (const v of rect) expect(v % 2).toBe(0)
+    }
+  })
+
+  it('does not stand the panes on a shared baseline', () => {
+    // The guard on the mistake that cost this design a round: shapes sharing a
+    // baseline at differing heights read as a column chart no matter what
+    // rhythm they are given. The panes must divide the tile, not stand on it.
+    const bottoms = new Set(art.PANES.map(([, y, , h]) => y + h))
+    expect(bottoms.size).toBeGreaterThan(1)
+  })
+
+  it('keeps the whole mark inside the tile', () => {
+    for (const [x, y, w, h] of art.PANES) {
+      expect(x).toBeGreaterThanOrEqual(0)
+      expect(y).toBeGreaterThanOrEqual(0)
+      expect(x + w).toBeLessThanOrEqual(32)
+      expect(y + h).toBeLessThanOrEqual(32)
+    }
+    for (const r of rects) {
+      expect(attr(r, 'x') + attr(r, 'width')).toBeLessThanOrEqual(1024)
+      expect(attr(r, 'y') + attr(r, 'height')).toBeLessThanOrEqual(1024)
+    }
+  })
+
+  it('paints itself only in colours the app itself uses', () => {
+    // The icon and the UI have to be demonstrably the same product; a hex that
+    // drifts out of the token set is how a brand quietly splits in two.
+    const css = read('src/renderer/src/styles.css')
+    for (const hex of Object.values(art.C)) {
+      expect(css.toLowerCase()).toContain(hex.toLowerCase())
+    }
   })
 })

@@ -7,15 +7,16 @@
  *
  *   electron scripts/icon/render-site-assets.cjs <output-dir>
  *
- * Filenames are versioned (`-spymaster`) on purpose: social-unfurl caches key on
- * the image URL, so a rename is the only way to dislodge a preview still cached
- * under the old artwork. Same reason the previous assets were `-monad-v2`.
+ * Filenames are versioned (`-panes`) on purpose: social-unfurl caches key on the
+ * image URL, so a rename is the only way to dislodge a preview still cached
+ * under the old artwork. Same reason the previous assets were `-spymaster` and,
+ * before those, `-monad-v2`. The gh-pages HTML has to be repointed to match.
  */
 
 const { app, BrowserWindow } = require('electron')
 const fs = require('fs')
 const { join, resolve } = require('path')
-const { winSvg, knockoutSvg, ogSvg, C } = require('./art.cjs')
+const { winSvg, macSvg, ogSvg } = require('./art.cjs')
 
 const OUT = resolve(process.argv[2] || '.')
 const WORDMARK = join(__dirname, '..', '..', 'src', 'renderer', 'src', 'assets', 'wordmark.png')
@@ -61,16 +62,18 @@ app.whenReady().then(async () => {
     win.webContents.executeJavaScript(`(${fn})(${a.map((v) => JSON.stringify(v)).join(',')})`, true)
 
   try {
-    write('icon-spymaster.png', await run(RASTER, winSvg(), 256, 256), 256, 256)
+    write('icon-panes.png', await run(RASTER, winSvg(), 256, 256), 256, 256)
 
-    // Header mark: cream knockout on transparent, so it reads on the dark bar.
-    const mark = knockoutSvg(C.cream)
-    write('logo-mark-spymaster.png', await run(RASTER, mark, 512, 512), 512, 512)
+    // Header mark: the real squircle tile, not a knockout. The old mark had to
+    // be flattened to cream because a dark tile disappeared into the dark bar —
+    // terracotta was chosen precisely so it does not, so the site can show the
+    // icon the user is about to download rather than a stand-in for it.
+    write('logo-mark-panes.png', await run(RASTER, macSvg(), 512, 512), 512, 512)
 
     // Social card. The wordmark is embedded as a data URI because an SVG loaded
     // into an <img> cannot reach out to a sibling file.
     const wm = 'data:image/png;base64,' + fs.readFileSync(WORDMARK).toString('base64')
-    write('og-image-spymaster.png', await run(RASTER, ogSvg(wm), 2400, 1260), 2400, 1260)
+    write('og-image-panes.png', await run(RASTER, ogSvg(wm), 2400, 1260), 2400, 1260)
   } catch (e) {
     console.error('[site] FAILED: ' + (e && e.message ? e.message : e))
     process.exit(1)
