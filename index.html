@@ -20,15 +20,16 @@
     />
     <meta property="og:url" content="https://serhiileniv.github.io/spymaster/" />
     <!-- Versioned filenames: unfurl caches key on the URL, so a rename is the only
-         way to dislodge a preview cached under the old Vectro artwork. -->
-    <meta property="og:image" content="https://serhiileniv.github.io/spymaster/og-image-spymaster.png" />
+         way to dislodge a preview cached under the old artwork. `-panes` supersedes
+         `-spymaster`, which carried the fedora figure the icon replaced. -->
+    <meta property="og:image" content="https://serhiileniv.github.io/spymaster/og-image-panes.png" />
     <meta property="og:image:width" content="2400" />
     <meta property="og:image:height" content="1260" />
     <meta property="og:image:alt" content="Spy Master — run every coding agent at once" />
     <meta name="twitter:card" content="summary_large_image" />
 
-    <link rel="icon" href="icon-spymaster.png" type="image/png" />
-    <link rel="apple-touch-icon" href="icon-spymaster.png" />
+    <link rel="icon" href="icon-panes.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icon-panes.png" />
     <link rel="preload" as="font" type="font/woff2" href="fonts/lora-var.woff2" crossorigin />
     <link rel="preload" as="font" type="font/woff2" href="fonts/lora-var-italic.woff2" crossorigin />
 
@@ -760,12 +761,12 @@
   <body>
     <nav class="nav" id="nav">
       <div class="wrap nav-inner">
-        <!-- The mark ships as a PNG, not a vector: every SVG in build/ still
-             carries the older simplified M. This is the same file the README
-             uses at the top (build/mark-knockout-light-1024.png), so the
-             README, the favicon and the header all draw the one mark. -->
+        <!-- The real squircle app tile, not a flattened knockout. The knockout
+             existed because the old dark mark vanished into this dark bar; the
+             terracotta tile was chosen precisely so it does not, so the header
+             can show the icon the visitor is about to download. -->
         <a class="brand" href="#top" aria-label="Spy Master — home">
-          <img src="logo-mark-spymaster.png" alt="" width="34" height="34" />
+          <img src="logo-mark-panes.png" alt="" width="34" height="34" />
         </a>
         <div class="nav-right">
           <a class="hide-sm" href="#how">how&nbsp;it&nbsp;works</a>
