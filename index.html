@@ -3,29 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Spy Master — run every coding agent in its own worktree</title>
+    <title>Agent Master — run every coding agent in its own worktree</title>
     <meta
       name="description"
-      content="Spy Master is a desktop app that runs Claude Code, Codex, Gemini and any other CLI coding agent side by side — each sealed in its own git worktree, with diff and merge built in. Free, MIT-licensed, bring your own CLIs."
+      content="Agent Master is a desktop app that runs Claude Code, Codex, Gemini and any other CLI coding agent side by side — each sealed in its own git worktree, with diff and merge built in. Free, MIT-licensed, bring your own CLIs."
     />
-    <link rel="canonical" href="https://serhiileniv.github.io/spymaster/" />
+    <link rel="canonical" href="https://serhiileniv.github.io/agentmaster/" />
     <meta name="theme-color" content="#100d0c" />
 
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Spy Master" />
-    <meta property="og:title" content="Spy Master — run every coding agent in its own worktree" />
+    <meta property="og:site_name" content="Agent Master" />
+    <meta property="og:title" content="Agent Master — run every coding agent in its own worktree" />
     <meta
       property="og:description"
       content="Five agents, one repo, nothing trampled. Run your AI coding agents in parallel — isolated git worktrees, live status, diff and merge built in. Bring your own CLIs."
     />
-    <meta property="og:url" content="https://serhiileniv.github.io/spymaster/" />
+    <meta property="og:url" content="https://serhiileniv.github.io/agentmaster/" />
     <!-- Versioned filenames: unfurl caches key on the URL, so a rename is the only
          way to dislodge a preview cached under the old artwork. `-panes` supersedes
          `-spymaster`, which carried the fedora figure the icon replaced. -->
-    <meta property="og:image" content="https://serhiileniv.github.io/spymaster/og-image-panes.png" />
+    <meta property="og:image" content="https://serhiileniv.github.io/agentmaster/og-image-panes.png" />
     <meta property="og:image:width" content="2400" />
     <meta property="og:image:height" content="1260" />
-    <meta property="og:image:alt" content="Spy Master — run every coding agent at once" />
+    <meta property="og:image:alt" content="Agent Master — run every coding agent at once" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" href="icon-panes.png" type="image/png" />
@@ -35,11 +35,11 @@
 
     <style>
       /* ------------------------------------------------------------------
-         Spy Master — landing page. Single file, no build step, no CDN.
+         Agent Master — landing page. Single file, no build step, no CDN.
 
          Art direction, and the reasons for it:
-           - The site now speaks the app's own voice. Spy Master's entire UI is
-             set in Lora ("Spy Master Serif" in the app bundle) with a red accent
+           - The site now speaks the app's own voice. Agent Master's entire UI is
+             set in Lora ("Agent Master Serif" in the app bundle) with a red accent
              on dark; the page uses the same face and the same softened
              dark-mode red, so the download and the thing downloaded are one
              brand. No Space Grotesk, no Inter — display is Lora, body is
@@ -729,20 +729,21 @@
          against a rendered screenshot; the numbers are deliberate. */
       .wm {
         margin-top: 34px;
-        /* Raised from 0.74em with the rename: "Monad" had no descenders,
-           "Spy Master" has two, and cropping straight through the p and the y
-           reads as a bug rather than as a deliberate bleed. */
+        /* Raised from 0.74em when the name grew descenders: "Monad" had none,
+           and cropping straight through the g of "Agent" reads as a bug rather
+           than as a deliberate bleed. */
         height: 0.88em;
         overflow: hidden;
         font-family: var(--font-display);
         font-style: italic;
         font-weight: 550;
-        /* Halved from 20vw, which was tuned for a five-letter name. "Spy Master"
-           is twice as long; at 20vw it overflowed the page and rendered as
-           "Spy" with the rest clipped off both sides. ~10.5vw restores the
-           footprint the mark had before, and the max holds that width on very
-           wide screens. */
-        font-size: clamp(60px, 10.5vw, 152px);
+        /* The footprint is the constant here, not the size: every rename has
+           been re-fitted so the word occupies the same share of the page it
+           did as "Monad" (~56% at desktop widths). 20vw suited five letters;
+           "Spy Master" needed 10.5vw; "Agent Master" measures 18.5% wider
+           again, so each number is the previous one scaled by that. Re-measure
+           rather than eyeball it if the name ever changes again. */
+        font-size: clamp(51px, 8.85vw, 128px);
         line-height: 0.72;
         letter-spacing: 0.015em;
         text-align: center;
@@ -765,13 +766,13 @@
              existed because the old dark mark vanished into this dark bar; the
              terracotta tile was chosen precisely so it does not, so the header
              can show the icon the visitor is about to download. -->
-        <a class="brand" href="#top" aria-label="Spy Master — home">
+        <a class="brand" href="#top" aria-label="Agent Master — home">
           <img src="logo-mark-panes.png" alt="" width="34" height="34" />
         </a>
         <div class="nav-right">
           <a class="hide-sm" href="#how">how&nbsp;it&nbsp;works</a>
-          <a class="hide-sm" href="https://github.com/serhiileniv/spymaster/blob/main/docs/FAQ.md">FAQ</a>
-          <a class="hide-sm" href="https://github.com/serhiileniv/spymaster">GitHub</a>
+          <a class="hide-sm" href="https://github.com/serhiileniv/agentmaster/blob/main/docs/FAQ.md">FAQ</a>
+          <a class="hide-sm" href="https://github.com/serhiileniv/agentmaster">GitHub</a>
           <a class="nav-dl" href="#download">Download</a>
         </div>
       </div>
@@ -788,7 +789,7 @@
               <a
                 id="dl-primary"
                 class="btn"
-                href="https://github.com/serhiileniv/spymaster/releases/latest/download/SpyMaster-macOS-arm64.dmg"
+                href="https://github.com/serhiileniv/agentmaster/releases/latest/download/AgentMaster-macOS-arm64.dmg"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
                   <path
@@ -800,7 +801,7 @@
               <a
                 id="dl-secondary"
                 class="btn-alt"
-                href="https://github.com/serhiileniv/spymaster/releases/latest/download/SpyMaster-Windows-Setup.exe"
+                href="https://github.com/serhiileniv/agentmaster/releases/latest/download/AgentMaster-Windows-Setup.exe"
                 ><span id="dl-secondary-label">or Windows</span></a
               >
               <span class="cta-meta">
@@ -808,7 +809,7 @@
                      Releases API. It is what visitors see when that fetch
                      fails, most often the unauthenticated GitHub API's
                      60 req/hr per-IP limit, so bump it at release time. -->
-                <span id="ver-text"><b>v0.1.28</b></span>
+                <span id="ver-text"><b>v0.1.31</b></span>
               </span>
             </div>
 
@@ -821,7 +822,7 @@
         </header>
 
         <!-- ---------------------------------------------------------- demo -->
-        <section class="demo-band" aria-label="Spy Master in action">
+        <section class="demo-band" aria-label="Agent Master in action">
           <div class="demo-frame">
             <video
               class="demo"
@@ -832,7 +833,7 @@
               muted
               playsinline
               preload="metadata"
-              aria-label="Six coding agents running in parallel in Spy Master, each in its own git worktree"
+              aria-label="Six coding agents running in parallel in Agent Master, each in its own git worktree"
             ></video>
           </div>
           <p class="demo-cap">Six agents in parallel: each a real terminal, each on its own branch.</p>
@@ -888,9 +889,9 @@
               <circle cx="642" cy="170" r="5.5" fill="#ff7a6b" />
               <text x="642" y="206" text-anchor="middle" fill="#99897e">merged, by you</text>
               <!-- branch names -->
-              <text x="180" y="26" fill="#7c6e64">spymaster/gemini</text>
-              <text x="250" y="82" fill="#7c6e64">spymaster/claude</text>
-              <text x="380" y="274" fill="#7c6e64">spymaster/codex</text>
+              <text x="180" y="26" fill="#7c6e64">agentmaster/gemini</text>
+              <text x="250" y="82" fill="#7c6e64">agentmaster/claude</text>
+              <text x="380" y="274" fill="#7c6e64">agentmaster/codex</text>
               <!-- live status -->
               <circle cx="600" cy="248" r="4" fill="#86b893" />
               <text x="612" y="252.5" fill="#86b893">working</text>
@@ -936,7 +937,7 @@
 ├─ <span class="dir">.git/</span>
 ├─ <span class="yours">src/</span>                     <span class="note">← your working tree, untouched</span>
 ├─ <span class="yours">package.json</span>
-└─ <span class="dir">.spymaster-worktrees/</span>
+└─ <span class="dir">.agentmaster-worktrees/</span>
    ├─ <span class="dir">claude/</span>              <span class="on">● working</span>
    ├─ <span class="dir">codex/</span>               <span class="wait">● waiting for you</span>
    └─ <span class="dir">gemini/</span>              <span class="note">● idle</span></pre>
@@ -947,7 +948,7 @@
             <h2>Your working tree is never <em>one of them.</em></h2>
             <p>
               Running several agents on one checkout normally means they overwrite each other's edits,
-              and yours. Spy Master gives each agent <b>its own branch and its own git worktree</b>: a
+              and yours. Agent Master gives each agent <b>its own branch and its own git worktree</b>: a
               real, separate directory on disk, backed by the same repository.
             </p>
             <p>
@@ -960,7 +961,7 @@
         <!-- ----------------------------------------------------- download -->
         <section class="dl" id="download">
           <div class="dl-head">
-            <h2>Download Spy Master</h2>
+            <h2>Download Agent Master</h2>
             <p>
               Free and MIT-licensed. Runs on your machine against your repo: no account, no
               telemetry, and no inference cost, because it drives the agent CLIs you already pay for.
@@ -968,7 +969,7 @@
           </div>
 
           <p class="prereq">
-            <b>Install an agent CLI first.</b> Spy Master orchestrates the tools you already run; it
+            <b>Install an agent CLI first.</b> Agent Master orchestrates the tools you already run; it
             doesn't ship a model of its own. Have at least one of <code>claude</code>,
             <code>codex</code>, <code>gemini</code> or <code>cursor-agent</code> on your PATH, then
             open a git repo and add your first agent.
@@ -989,18 +990,18 @@
               </div>
               <div>
                 <p class="plat-note">
-                  Drag Spy Master to Applications, then run this once: macOS marks unsigned downloads
+                  Drag Agent Master to Applications, then run this once: macOS marks unsigned downloads
                   &ldquo;damaged&rdquo; until the quarantine flag is cleared.
                 </p>
                 <div class="cmd">
-                  <code id="mac-cmd">xattr -dr com.apple.quarantine "/Applications/Spy Master.app"</code>
+                  <code id="mac-cmd">xattr -dr com.apple.quarantine "/Applications/Agent Master.app"</code>
                   <button class="copy" type="button" data-copy="mac-cmd">copy</button>
                 </div>
               </div>
               <a
                 id="dl-mac-install"
                 class="btn"
-                href="https://github.com/serhiileniv/spymaster/releases/latest/download/SpyMaster-macOS-arm64.dmg"
+                href="https://github.com/serhiileniv/agentmaster/releases/latest/download/AgentMaster-macOS-arm64.dmg"
                 >Download</a
               >
             </div>
@@ -1024,16 +1025,16 @@
               <a
                 id="dl-win-install"
                 class="btn"
-                href="https://github.com/serhiileniv/spymaster/releases/latest/download/SpyMaster-Windows-Setup.exe"
+                href="https://github.com/serhiileniv/agentmaster/releases/latest/download/AgentMaster-Windows-Setup.exe"
                 >Download</a
               >
             </div>
           </div>
 
           <div class="dl-foot">
-            <a href="https://github.com/serhiileniv/spymaster/releases">all releases &amp; checksums</a>
-            <a href="https://github.com/serhiileniv/spymaster/blob/main/docs/FAQ.md">FAQ</a>
-            <a href="https://github.com/serhiileniv/spymaster/issues">report a bug</a>
+            <a href="https://github.com/serhiileniv/agentmaster/releases">all releases &amp; checksums</a>
+            <a href="https://github.com/serhiileniv/agentmaster/blob/main/docs/FAQ.md">FAQ</a>
+            <a href="https://github.com/serhiileniv/agentmaster/issues">report a bug</a>
           </div>
         </section>
       </div>
@@ -1043,21 +1044,21 @@
       <div class="wrap">
         <div class="foot-meta">
           <span>Built by Serhii Leniv · MIT</span>
-          <a href="https://github.com/serhiileniv/spymaster">GitHub</a>
-          <a href="https://github.com/serhiileniv/spymaster/releases">changelog</a>
+          <a href="https://github.com/serhiileniv/agentmaster">GitHub</a>
+          <a href="https://github.com/serhiileniv/agentmaster/releases">changelog</a>
         </div>
       </div>
-      <div class="wm" aria-hidden="true">Spy Master</div>
+      <div class="wm" aria-hidden="true">Agent Master</div>
     </footer>
 
     <script>
       // ---- Download UX: detect OS, order the buttons, resolve live assets ----
       (function () {
-        var REPO = 'serhiileniv/spymaster';
+        var REPO = 'serhiileniv/agentmaster';
         var base = 'https://github.com/' + REPO + '/releases/latest/download/';
         var assets = {
-          mac: { url: base + 'SpyMaster-macOS-arm64.dmg', label: 'Download for macOS', alt: 'or Windows', os: 'mac' },
-          win: { url: base + 'SpyMaster-Windows-Setup.exe', label: 'Download for Windows', alt: 'or macOS', os: 'win' }
+          mac: { url: base + 'AgentMaster-macOS-arm64.dmg', label: 'Download for macOS', alt: 'or Windows', os: 'mac' },
+          win: { url: base + 'AgentMaster-Windows-Setup.exe', label: 'Download for Windows', alt: 'or macOS', os: 'win' }
         };
         var ICONS = {
           mac: '<path d="M16.4 1.6c.1 1-.3 2-.9 2.7-.6.8-1.6 1.4-2.6 1.3-.1-1 .4-2 .9-2.6.6-.8 1.7-1.3 2.6-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.6 3.1-1.3 0-1.7-.8-3.4-.8-1.8 0-2.2.8-3.5.9-1.5 0-2.6-1.5-3.5-2.9C-.1 16.6-.6 11 1.6 8c1-1.4 2.6-2.3 4.1-2.3 1.5 0 2.5.9 3.7.9 1.2 0 1.9-.9 3.7-.9 1.3 0 2.7.7 3.7 2-3.2 1.7-2.7 6.2.5 7.6z"/>',
