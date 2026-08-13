@@ -1,7 +1,7 @@
 # Changelog
 
 Notable changes per release. Installers for every version are on the
-[releases page](https://github.com/serhiileniv/agentmaster/releases).
+[releases page](https://github.com/serhiileniv/agent-master/releases).
 
 This file was reconstructed from git history at v0.1.25; entries before then are summarised rather
 than exhaustive. Entries below keep the product name they shipped under.

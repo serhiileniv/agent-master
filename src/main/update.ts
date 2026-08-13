@@ -2,7 +2,7 @@ import { app, ipcMain, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log/main'
 
-// Installers are published as GitHub Releases on this repo (serhiileniv/agentmaster,
+// Installers are published as GitHub Releases on this repo (serhiileniv/agent-master,
 // public) — its releases/latest is the app's version feed. CI attaches them on
 // every version tag; see RELEASING.md. All update traffic runs in the main
 // process so the renderer never talks to the network and the production CSP
@@ -17,12 +17,12 @@ import log from 'electron-log/main'
 //    signed builds the banner links to the download site instead. To enable
 //    mac later: sign + notarize, add a `zip` target for mac in
 //    electron-builder.yml, and add 'darwin' to canAutoUpdate().
-const RELEASES_API = 'https://api.github.com/repos/serhiileniv/agentmaster/releases/latest'
+const RELEASES_API = 'https://api.github.com/repos/serhiileniv/agent-master/releases/latest'
 // Send users to the download site, not the raw release: it picks the right
 // installer per OS and explains the unsigned-build Gatekeeper/SmartScreen prompt.
 // NOTE: must track the repo name — GitHub Pages URLs do NOT redirect on rename
 // (the old /vectro-site page 404s), unlike the REST API.
-const DOWNLOAD_URL = 'https://serhiileniv.github.io/agentmaster'
+const DOWNLOAD_URL = 'https://serhiileniv.github.io/agent-master'
 
 export interface UpdateInfo {
   current: string
