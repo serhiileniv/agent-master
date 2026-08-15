@@ -331,10 +331,16 @@
       }
 
       /* -------------------------------------------------------------- demo */
+      /* The demo does NOT autoplay, deliberately. The first seconds of the
+         recording are empty terminals — the scripted output hasn't started —
+         so autoplaying threw away the one strong frame we have and opened the
+         page on a near-black rectangle. The poster is the full canvas, six
+         agents mid-work, and it now holds until someone asks for the video. */
       .demo-band {
         padding: 64px 0 0;
       }
       .demo-frame {
+        position: relative;
         border: 1px solid var(--line-strong);
         border-radius: 12px;
         overflow: hidden;
@@ -343,6 +349,45 @@
       .demo-frame video {
         width: 100%;
         display: block;
+      }
+      /* The play affordance. It covers the whole frame so the target is the
+         picture itself, not a 44px dot — but it paints only the pill, so the
+         poster stays unobscured. Removed from the DOM once playback starts. */
+      .demo-play {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        color: var(--ink);
+      }
+      .demo-play span {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 20px 0 17px;
+        border-radius: 999px;
+        background: rgba(16, 13, 12, 0.82);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        border: 1px solid var(--line-strong);
+        font-size: 14px;
+        font-weight: 600;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+      .demo-play:hover span {
+        background: rgba(16, 13, 12, 0.94);
+        border-color: var(--ink-faint);
+      }
+      .demo-play svg {
+        width: 13px;
+        height: 13px;
+        flex: none;
       }
       .demo-cap {
         margin: 16px 0 0;
@@ -884,16 +929,27 @@
         <section class="demo-band" aria-label="Agent Master in action">
           <div class="demo-frame">
             <video
+              id="demo"
               class="demo"
               src="demo.mp4"
               poster="demo-poster.jpg"
-              autoplay
               loop
               muted
               playsinline
-              preload="metadata"
+              preload="none"
               aria-label="Six coding agents running in parallel in Agent Master, each in its own git worktree"
             ></video>
+            <!-- preload="none" above: without autoplay there is no reason to
+                 pull 1.5MB of video for a visitor who never presses play. The
+                 poster is a separate 94KB image and still paints immediately. -->
+            <button class="demo-play" type="button" id="demo-play" aria-controls="demo">
+              <span>
+                <svg viewBox="0 0 12 14" fill="currentColor" aria-hidden="true" focusable="false">
+                  <path d="M0 0.7c0-.6.6-.9 1.1-.6l10.3 6.3c.5.3.5 1 0 1.3L1.1 13.9c-.5.3-1.1 0-1.1-.6V.7z" />
+                </svg>
+                Watch it run
+              </span>
+            </button>
           </div>
           <p class="demo-cap">Six agents in parallel: each a real terminal, each on its own branch.</p>
         </section>
@@ -1299,16 +1355,28 @@
           .catch(function () {});
       })();
 
-      // ---- Respect reduced-motion: hold the demo on its poster frame ----
+      // ---- Play the demo on request ----
+      // This replaced a reduced-motion guard that stripped `autoplay`. Nothing
+      // autoplays now, so every visitor gets the poster and nobody gets motion
+      // they didn't ask for — the guard had nothing left to do.
       (function () {
-        if (!window.matchMedia) return;
-        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        var v = document.querySelector('video.demo');
-        if (v) {
-          v.autoplay = false;
-          v.removeAttribute('autoplay');
-          v.pause();
-        }
+        var v = document.getElementById('demo');
+        var btn = document.getElementById('demo-play');
+        if (!v || !btn) return;
+        btn.addEventListener('click', function () {
+          // Native controls only appear once there is something to control;
+          // before that they would just sit on top of the poster.
+          v.controls = true;
+          var p = v.play();
+          if (p && p.catch) {
+            p.catch(function () {
+              // Autoplay policy or a decode failure: leave the poster and the
+              // controls in place rather than a frame the visitor can't fix.
+              btn.hidden = false;
+            });
+          }
+          btn.hidden = true;
+        });
       })();
 
       // ---- Hairline under the nav, only once you've scrolled ----
