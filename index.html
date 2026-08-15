@@ -409,13 +409,18 @@
         grid-template-rows: subgrid;
         gap: 0;
       }
+      /* Sans, not Lora. Lora is reserved for h1/h2 now: when every heading
+         level was serif the display sizes stopped reading as display, and the
+         page had one texture from top to bottom. Restricting the serif widens
+         the hierarchy without adding a single new colour or rule. */
       .how-grid h3 {
-        font-family: var(--font-display);
-        font-size: 21px;
-        font-weight: 550;
+        font-family: var(--font-body);
+        font-size: 18px;
+        font-weight: 600;
         letter-spacing: -0.2px;
-        margin: 0 0 10px;
-        line-height: 1.25;
+        color: var(--ink);
+        margin: 0 0 8px;
+        line-height: 1.3;
       }
       .how-grid p {
         margin: 0;
@@ -747,9 +752,9 @@
         justify-content: space-between;
         align-items: center;
         gap: 24px;
-        font-family: var(--font-display);
-        font-size: 18px;
-        font-weight: 550;
+        font-family: var(--font-body);
+        font-size: 16px;
+        font-weight: 600;
         color: var(--ink);
         list-style: none;
       }
@@ -869,8 +874,7 @@
 
             <p>
               A desktop app that runs Claude Code, Codex, Gemini and any other terminal agent side by
-              side, each sealed in <b>its own git worktree</b>. Keep several projects open at once,
-              read each agent's diff, and land the ones that got it right.
+              side, each sealed in <b>its own git worktree</b>. Read the diffs, land what's good.
               <b>Nothing touches your branch until you say so.</b>
             </p>
           </div>
@@ -898,8 +902,8 @@
         <section class="works" aria-label="Supported agents">
           <p>
             Works with <b>Claude Code</b>, <b>Codex</b>, <b>Gemini</b>, <b>Cursor</b> — and anything
-            else you can start from a terminal. Agent Master never makes a model call of its own: it
-            drives the CLIs already on your machine, with your keys and your existing plans.
+            else you can start from a terminal. It never makes a model call of its own: your CLIs,
+            your keys, your existing plans.
           </p>
         </section>
 
@@ -907,40 +911,38 @@
         <section class="how" id="how">
           <h2>How it works</h2>
           <p class="lede">
-            You point Agent Master at a project folder and add agents to it. Each one gets a real
-            terminal, a branch, and a checkout of its own — so several can work at the same time
-            without ever seeing each other's edits, or yours.
+            Point it at a project folder and add agents. Each gets a real terminal, a branch, and a
+            checkout of its own — so they work at once without seeing each other's edits, or yours.
           </p>
 
           <div class="how-grid">
             <div>
               <h3>A branch and a worktree each</h3>
               <p>
-                Every agent gets its own private checkout, so parallel edits can't collide. Agents are
-                pinned to their worktree after spawn, so even a shell profile that jumps directories
-                can't walk one into your real working tree.
+                Every agent gets a private checkout, so parallel edits can't collide. Agents are
+                pinned to their worktree after spawn — even a shell profile that jumps directories
+                can't walk one into your real tree.
               </p>
             </div>
             <div>
               <h3>Up to nine live terminals</h3>
               <p>
-                Real terminals, tiled automatically. Start a swarm and watch them all at once, drag to
-                reorder, and get a desktop ping when a backgrounded agent finishes or needs you.
+                Real terminals, tiled automatically. Watch them all at once, drag to reorder, and get
+                a desktop ping when a backgrounded agent finishes or needs you.
               </p>
             </div>
             <div>
               <h3>Several projects, one window</h3>
               <p>
-                Each project folder you open becomes a tab across the top, with its own canvas of
-                agents and its own layout. Switch between them without losing anyone's place, and the
-                whole tab set comes back the way you left it after a restart.
+                Each project folder becomes a tab with its own canvas of agents. Switch between them
+                without losing anyone's place; the whole tab set returns after a restart.
               </p>
             </div>
             <div>
               <h3>Merge, apply, or discard</h3>
               <p>
-                Read an agent's diff against your base branch and merge it, take just the files you
-                want onto your branch, or throw the whole branch away, all without leaving the app.
+                Read an agent's diff against your base branch, then merge it, take only the files you
+                want, or throw the branch away — without leaving the app.
               </p>
             </div>
           </div>
@@ -973,8 +975,8 @@
               real, separate directory on disk, backed by the same repository.
             </p>
             <p>
-              Those directories live in a folder <b>beside</b> your repo, not inside it, so git never
-              reports them as untracked files and nothing you didn't ask for shows up in your status.
+              They live <b>beside</b> your repo, not inside it, so git never reports them as
+              untracked.
             </p>
             <p>
               When an agent gets it right you review the diff and land it deliberately.
@@ -1028,8 +1030,7 @@
           <p class="prereq">
             <b>Install an agent CLI first.</b> Agent Master orchestrates the tools you already run; it
             doesn't ship a model of its own. Have at least one of <code>claude</code>,
-            <code>codex</code>, <code>gemini</code> or <code>cursor-agent</code> on your PATH, then
-            open a git repo and add your first agent.
+            <code>codex</code>, <code>gemini</code> or <code>cursor-agent</code> on your PATH.
           </p>
 
           <div class="plat">
