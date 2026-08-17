@@ -58,11 +58,15 @@
              headings were the page's most-repeated tic — three headings, same
              move. Headings are plain now. Italic survives nowhere.
            - Every concrete detail on this page is checked against the app's
-             source, not invented. The worktree container is a SIBLING of the
-             repo (src/main/git.ts, worktreeContainers), leaf folders are
-             `<repo>-<shortid>`, branches are `canvas/<shortid>`. An earlier
-             version of this page drew all three wrong. If you change the copy,
+             source, not invented — paths, branch names, requirements,
+             versions. An earlier version of this page described the worktree
+             layout from memory and got it wrong. If you change the copy,
              re-check it.
+           - The page used to carry a "How it works" grid and an on-disk tree
+             diagram between the supported-agents line and the comparison
+             table. Both were removed deliberately; the demo, the comparison
+             table and the FAQ already cover that ground. Do not reinstate
+             them as a "the page needs more explanation" reflex.
            - Still no box-shadow anywhere: depth is the surface ladder plus
              warm 1px hairlines.
          ------------------------------------------------------------------ */
@@ -100,8 +104,6 @@
            lightened (the visual-refresh rule). The site inherits the dark
            form and uses it only where colour means something. */
         --accent: #ff7a6b;
-        --working: #86b893;
-        --waiting: #cfa257;
 
         --font-display: 'Lora', Georgia, 'Iowan Old Style', 'Times New Roman', serif;
         --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
@@ -436,128 +438,6 @@
         font-weight: 500;
       }
 
-      /* ------------------------------------------------------- how it works */
-      .how {
-        padding: 104px 0 0;
-      }
-      .how-grid {
-        margin-top: 52px;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 44px 60px;
-      }
-      /* Subgrid keeps the columns on shared rows: if one heading wraps, every
-         paragraph still starts on the same line. */
-      .how-grid > div {
-        display: grid;
-        grid-row: span 2;
-        grid-template-rows: subgrid;
-        gap: 0;
-      }
-      /* Sans, not Lora. Lora is reserved for h1/h2 now: when every heading
-         level was serif the display sizes stopped reading as display, and the
-         page had one texture from top to bottom. Restricting the serif widens
-         the hierarchy without adding a single new colour or rule. */
-      .how-grid h3 {
-        font-family: var(--font-body);
-        font-size: 18px;
-        font-weight: 600;
-        letter-spacing: -0.2px;
-        color: var(--ink);
-        margin: 0 0 8px;
-        line-height: 1.3;
-      }
-      .how-grid p {
-        margin: 0;
-        font-size: 15px;
-        color: var(--ink-subtle);
-      }
-      @media (max-width: 880px) {
-        .how-grid {
-          grid-template-columns: minmax(0, 1fr);
-          gap: 30px;
-        }
-      }
-
-      /* --------------------------------------------------------- isolation */
-      .iso {
-        padding: 112px 0 0;
-        display: grid;
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-        gap: 64px;
-        align-items: center;
-      }
-      .iso-copy p {
-        color: var(--ink-subtle);
-        margin: 24px 0 0;
-        font-size: 16px;
-      }
-      .iso-copy p b {
-        color: var(--ink-muted);
-        font-weight: 500;
-      }
-      @media (max-width: 940px) {
-        .iso {
-          grid-template-columns: minmax(0, 1fr);
-          gap: 36px;
-          padding-top: 80px;
-        }
-        .iso .tree {
-          order: 2;
-        }
-      }
-
-      /* The on-disk tree — real paths, so it earns its mono. Every name in it
-         is what the app actually writes; see the header comment. */
-      .tree {
-        background: var(--surface-1);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        overflow: hidden;
-      }
-      .tree-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 11px 18px;
-        border-bottom: 1px solid var(--line);
-        font-family: var(--font-mono);
-        font-size: 12px;
-        color: var(--ink-faint);
-      }
-      .tree pre {
-        margin: 0;
-        padding: 22px 20px 24px;
-        font-family: var(--font-mono);
-        font-size: 12.5px;
-        line-height: 1.9;
-        color: var(--ink-subtle);
-        overflow-x: auto;
-        tab-size: 2;
-      }
-      .tree .dir {
-        color: var(--ink);
-      }
-      .tree .yours {
-        color: var(--waiting);
-      }
-      .tree .note {
-        color: var(--ink-faint);
-      }
-      .tree .on {
-        color: var(--working);
-      }
-      .tree .wait {
-        color: var(--waiting);
-      }
-      .tree-foot {
-        border-top: 1px solid var(--line);
-        padding: 13px 18px;
-        font-family: var(--font-mono);
-        font-size: 12px;
-        color: var(--ink-faint);
-      }
-
       /* -------------------------------------------------------- comparison */
       .cmp {
         padding: 112px 0 0;
@@ -874,7 +754,6 @@
           <img src="logo-mark-panes.png" alt="" width="34" height="34" />
         </a>
         <div class="nav-right">
-          <a class="hide-sm" href="#how">how&nbsp;it&nbsp;works</a>
           <a class="hide-sm" href="#faq">FAQ</a>
           <a class="hide-sm" href="https://github.com/serhiileniv/agent-master">GitHub</a>
           <a class="nav-dl" href="#download">Download</a>
@@ -961,84 +840,6 @@
             else you can start from a terminal. It never makes a model call of its own: your CLIs,
             your keys, your existing plans.
           </p>
-        </section>
-
-        <!-- ------------------------------------------------- how it works -->
-        <section class="how" id="how">
-          <h2>How it works</h2>
-          <p class="lede">
-            Point it at a project folder and add agents. Each gets a real terminal, a branch, and a
-            checkout of its own — so they work at once without seeing each other's edits, or yours.
-          </p>
-
-          <div class="how-grid">
-            <div>
-              <h3>A branch and a worktree each</h3>
-              <p>
-                Every agent gets a private checkout, so parallel edits can't collide. Agents are
-                pinned to their worktree after spawn — even a shell profile that jumps directories
-                can't walk one into your real tree.
-              </p>
-            </div>
-            <div>
-              <h3>Up to nine live terminals</h3>
-              <p>
-                Real terminals, tiled automatically. Watch them all at once, drag to reorder, and get
-                a desktop ping when a backgrounded agent finishes or needs you.
-              </p>
-            </div>
-            <div>
-              <h3>Several projects, one window</h3>
-              <p>
-                Each project folder becomes a tab with its own canvas of agents. Switch between them
-                without losing anyone's place; the whole tab set returns after a restart.
-              </p>
-            </div>
-            <div>
-              <h3>Merge, apply, or discard</h3>
-              <p>
-                Read an agent's diff against your base branch, then merge it, take only the files you
-                want, or throw the branch away — without leaving the app.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <!-- ---------------------------------------------------- isolation -->
-        <section class="iso" id="isolation">
-          <div class="tree">
-            <div class="tree-head">
-              <span>~/code</span>
-              <span>on disk</span>
-            </div>
-            <pre><span class="dir">code/</span>
-├─ <span class="dir">storefront/</span>              <span class="note">← your repo</span>
-│  ├─ <span class="dir">.git/</span>
-│  ├─ <span class="yours">src/</span>                  <span class="note">← your working tree, untouched</span>
-│  └─ <span class="yours">package.json</span>
-└─ <span class="dir">.agentmaster-worktrees/</span>  <span class="note">← sibling, never inside your repo</span>
-   ├─ <span class="dir">storefront-4f2a9c1b/</span>   <span class="on">● working</span>
-   ├─ <span class="dir">storefront-8d3e0a77/</span>   <span class="wait">● waiting for you</span>
-   └─ <span class="dir">storefront-b16c5f20/</span>   <span class="note">● idle</span></pre>
-            <div class="tree-foot">branches: canvas/4f2a9c1b · canvas/8d3e0a77 · canvas/b16c5f20</div>
-          </div>
-
-          <div class="iso-copy">
-            <h2>Your working tree is never one of them.</h2>
-            <p>
-              Running several agents on one checkout normally means they overwrite each other's edits,
-              and yours. Agent Master gives each agent <b>its own branch and its own git worktree</b>: a
-              real, separate directory on disk, backed by the same repository.
-            </p>
-            <p>
-              They live <b>beside</b> your repo, not inside it, so git never reports them as
-              untracked.
-            </p>
-            <p>
-              When an agent gets it right you review the diff and land it deliberately.
-              <b>Nothing reaches your branch until you say so.</b>
-            </p>
-          </div>
         </section>
 
         <!-- --------------------------------------------------- comparison -->
