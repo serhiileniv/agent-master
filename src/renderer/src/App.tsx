@@ -52,7 +52,8 @@ import {
   refitAgents,
   flushAgents,
   refreshAgents,
-  pasteIntoTerminal
+  pasteIntoTerminal,
+  isRichEditable
 } from './terminalRegistry'
 
 export default function App(): JSX.Element {
@@ -266,6 +267,10 @@ export default function App(): JSX.Element {
       const el = document.activeElement as HTMLElement | null
       if (el?.closest?.('.vec-pane__term')) return // xterm handles it itself
       if (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') return // native input
+      // The file editor is a contenteditable, not a textarea — without this it
+      // reads as "nothing focused" and Ctrl+V pulls focus out of the editor and
+      // types the clipboard into an agent's terminal instead.
+      if (isRichEditable(el)) return
       const ws = activeWs(useStore.getState())
       // Only an UNAMBIGUOUS target: the maximized pane, or the sole selection.
       // Under a multi-select there's no single active terminal, so pasting into

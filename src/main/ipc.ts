@@ -161,6 +161,22 @@ export function registerIpc(
   // clipboard module is synchronous and has no such gating.
   ipcMain.handle('clipboard:read', () => clipboard.readText())
   ipcMain.on('clipboard:write', (_e, { text }: { text: string }) => clipboard.writeText(text))
+  // Chromium's own editing commands, applied to whatever the renderer currently
+  // has focused. Needed only because of the macOS Edit menu: its accelerators
+  // consume ⌘C/⌘V/⌘A before the page ever sees them, so Blink's built-in
+  // handling never runs and every editable surface that ISN'T a plain input —
+  // the file editor's contenteditable, a plain text selection in the diff —
+  // would be left with no handler at all. The renderer decides WHICH surface a
+  // command belongs to (see terminalRegistry.handleMenuEdit) and calls this only
+  // for the ones Blink should own. No arguments beyond the action, and nothing
+  // is returned.
+  ipcMain.on('edit:native', (_e, { action }: { action: 'copy' | 'paste' | 'selectAll' }) => {
+    const w = getWindow()
+    if (!w || w.isDestroyed() || w.webContents.isDestroyed()) return
+    if (action === 'copy') w.webContents.copy()
+    else if (action === 'paste') w.webContents.paste()
+    else if (action === 'selectAll') w.webContents.selectAll()
+  })
   // Whether the clipboard holds an image (e.g. a screenshot). Paste can't
   // transmit pixels through a pty — instead the renderer forwards the raw
   // Ctrl+V byte so TUIs that read the OS clipboard themselves (Claude Code

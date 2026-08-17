@@ -72,3 +72,9 @@ jobs:
       # A pane must open on a prompt, not on the PowerShell banner + upgrade nag.
       # Windows-only assertion, and this runner is windows-latest.
       - run: node scripts/smoke/run-smoke.cjs quietboot
+      # ⌘C/⌘V/⌘A are routed by the renderer (the macOS menu eats the keystroke
+      # before the page sees it), and anything not routed to a plain input is
+      # handed back to Chromium. A wrong route doesn't dead-end — it puts the
+      # command on a TERMINAL, i.e. types the clipboard onto an agent's command
+      # line. This asserts the Chromium half really reaches the file editor.
+      - run: node scripts/smoke/run-smoke.cjs clipboard
