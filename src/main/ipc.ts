@@ -1,5 +1,5 @@
 import { app, ipcMain, dialog, BrowserWindow, Notification, shell, clipboard } from 'electron'
-import { join, basename, isAbsolute, relative } from 'path'
+import { join, basename, isAbsolute } from 'path'
 import { promises as fs, watch as fsWatch, type FSWatcher } from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -25,6 +25,8 @@ import {
   mergeAgent,
   applyAgentFiles,
   getDirtyPaths,
+  repoRelPrefix,
+  filterDirty,
   friendlyGitError
 } from './git'
 import {
@@ -466,26 +468,17 @@ export function registerIpc(
     if (!repoRoot) return []
     const dirty = await getDirtyPaths(repoRoot)
     if (dirty.size === 0) return []
-    // git reports paths relative to the REPO root, which is not necessarily the
-    // scope root — an agent can point at a subfolder. Both sides go through
-    // realpath first: git returns a resolved path, and on macOS the scope root
-    // typically arrives via /var while git says /private/var, which would make a
-    // plain string comparison produce a nonsense prefix.
-    let prefix = ''
+    // Both sides go through realpath before being compared — see repoRelPrefix,
+    // where the reasoning and the platform cases live.
+    let prefix: string | null = null
     try {
       const [realRoot, realRepo] = await Promise.all([fs.realpath(root), fs.realpath(repoRoot)])
-      const rel = relative(realRepo, realRoot).replace(/\\/g, '/')
-      // Outside the repo, or not a descendant — no meaningful mapping.
-      if (rel.startsWith('..')) return []
-      prefix = rel ? rel + '/' : ''
+      prefix = repoRelPrefix(realRepo, realRoot)
     } catch {
       return []
     }
-    return rels.filter((rel) => {
-      const repoRel = prefix + String(rel).replace(/\\/g, '/')
-      // A folder counts as dirty when anything under it is.
-      return dirty.has(repoRel) || [...dirty].some((d) => d.startsWith(repoRel + '/'))
-    })
+    if (prefix === null) return []
+    return filterDirty(rels, dirty, prefix)
   })
 
   // Recursive fs.watch on the scope root, debounced, emitting `file:changed`.

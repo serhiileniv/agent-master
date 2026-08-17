@@ -169,10 +169,18 @@ function buildScript(ctx) {
     }
 
     // --- dirty paths ------------------------------------------------------
-    // src/a.txt was committed, then overwritten by the move above → modified.
-    // ghost.txt has never existed → git says nothing about it, so this also
-    // proves the handler filters rather than echoing its input back.
-    const dirty = await f.dirtyPaths(root, ['src/a.txt', 'ghost.txt'])
+    // cp/one.txt was created by this smoke and never added → UNTRACKED, which
+    // git reports deterministically. ghost.txt has never existed → git says
+    // nothing about it, so this also proves the handler filters rather than
+    // echoing its input back.
+    //
+    // Deliberately NOT asserting on the committed-then-modified src/a.txt: git's
+    // racily-clean heuristic makes a file written in the same timestamp tick as
+    // the index look unmodified, and that made this check pass on one CI run and
+    // fail on the next for the identical commit. The prefix mapping this used to
+    // be the only coverage for now lives in repoRelPrefix/filterDirty, unit
+    // tested in git.test.ts where it is deterministic.
+    const dirty = await f.dirtyPaths(root, ['cp/one.txt', 'ghost.txt'])
 
     // --- CONTAINMENT ------------------------------------------------------
     // Every write operation, against '..', an absolute path, and a symlink out.
@@ -235,7 +243,7 @@ function evaluate(r, ctx) {
   const rootStillThere = fs.existsSync(ROOT_DIR)
 
   const dirty = r.dirty || []
-  const dirtyOk = !gitReady || (dirty.includes('src/a.txt') && !dirty.includes('ghost.txt'))
+  const dirtyOk = !gitReady || (dirty.includes('cp/one.txt') && !dirty.includes('ghost.txt'))
 
   line('file ops api present', r.hasApi)
   if (r.hasApi) {
@@ -257,7 +265,13 @@ function evaluate(r, ctx) {
       r.trashOk + (r.trashWorks ? '' : ' (no OS trash here; refusal was inert)')
     )
     line('restore from snapshot', r.trashWorks ? r.restoreOk : 'skipped (no OS trash)')
-    line('dirty paths', gitReady ? dirty.join(',') || '(none)' : 'skipped (no git)')
+    // Print the VERDICT, not just the data. This line used to show only the
+    // paths, so when the check failed every printed line still read `true` and
+    // the RESULT: FAIL had no visible cause anywhere in the log.
+    line(
+      'dirty paths',
+      gitReady ? `${dirtyOk} (${dirty.join(',') || 'none'})` : 'skipped (no git)'
+    )
     line('block ../ create', r.escCreate)
     line('block absolute create', r.escCreateAbs)
     line('block ../ move out', r.escMoveOut)
@@ -272,6 +286,7 @@ function evaluate(r, ctx) {
   }
   line('outside file intact', outsideIntact)
   line('nothing planted outside', nothingPlanted)
+  line('scope root still there', rootStillThere)
 
   const pass = !!(
     r.hasApi &&

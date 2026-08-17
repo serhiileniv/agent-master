@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { unquoteGitPath, worktreeInfo, worktreeContainers, getDirtyPaths, setGitRunner } from './git'
+import {
+  unquoteGitPath,
+  worktreeInfo,
+  worktreeContainers,
+  getDirtyPaths,
+  repoRelPrefix,
+  filterDirty,
+  setGitRunner
+} from './git'
 
 // git quotes any path with non-ASCII or control characters in C style. Decoding
 // it wrong means the diff panel shows mojibake and, worse, "apply selected
@@ -147,5 +155,73 @@ describe('getDirtyPaths', () => {
     } finally {
       restore()
     }
+  })
+})
+
+// git names paths from the REPO root; the file panel names them from its SCOPE
+// root, and an agent can point at a subdirectory. This mapping was inline in the
+// IPC handler and therefore only reachable through a full Electron smoke — which
+// then failed on Windows and passed on macOS for the same commit. Pure and
+// tested here instead.
+describe('repoRelPrefix', () => {
+  it('is empty when the scope root IS the repo root', () => {
+    expect(repoRelPrefix('/repo', '/repo')).toBe('')
+  })
+
+  it('is the subpath when the scope root is inside the repo', () => {
+    expect(repoRelPrefix('/repo', '/repo/packages/app')).toBe('packages/app/')
+  })
+
+  it('is null when the scope root is outside the repo', () => {
+    expect(repoRelPrefix('/repo', '/elsewhere')).toBeNull()
+    expect(repoRelPrefix('/repo/packages', '/repo')).toBeNull()
+  })
+
+  // `/repo2` is not inside `/repo`, despite the prefix.
+  it('does not treat a name-prefix as containment', () => {
+    expect(repoRelPrefix('/repo', '/repo2')).toBeNull()
+  })
+
+  // git answers with forward slashes on every platform; the scope root arrives
+  // with the platform separator. The prefix has to speak git's dialect.
+  it('normalises separators to git style', () => {
+    const prefix = repoRelPrefix('/repo', '/repo/a/b')
+    expect(prefix).not.toContain('\\')
+    expect(prefix).toBe('a/b/')
+  })
+})
+
+describe('filterDirty', () => {
+  const dirty = new Set(['src/a.ts', 'src/nested/deep.ts', 'README.md'])
+
+  it('keeps only the paths git reported', () => {
+    expect(filterDirty(['src/a.ts', 'src/clean.ts'], dirty, '')).toEqual(['src/a.ts'])
+  })
+
+  // Deleting a folder should warn when a single file inside it has uncommitted
+  // work — the folder itself never appears in git status.
+  it('counts a folder as dirty when something under it is', () => {
+    expect(filterDirty(['src/nested'], dirty, '')).toEqual(['src/nested'])
+    expect(filterDirty(['src'], dirty, '')).toEqual(['src'])
+  })
+
+  it('does not treat a name-prefix as containment', () => {
+    expect(filterDirty(['src/nes'], dirty, '')).toEqual([])
+  })
+
+  // The scope root is a subdirectory: the caller says 'a.ts', git said 'src/a.ts'.
+  it('applies the prefix before comparing', () => {
+    expect(filterDirty(['a.ts', 'clean.ts'], dirty, 'src/')).toEqual(['a.ts'])
+    // …and without the prefix the same call would find nothing, which is the
+    // exact way this went silently empty before.
+    expect(filterDirty(['a.ts'], dirty, '')).toEqual([])
+  })
+
+  it('reports nothing when git reported nothing', () => {
+    expect(filterDirty(['src/a.ts'], new Set(), '')).toEqual([])
+  })
+
+  it('accepts backslash-separated input from the renderer', () => {
+    expect(filterDirty(['src\\a.ts'], dirty, '')).toEqual(['src\\a.ts'])
   })
 })

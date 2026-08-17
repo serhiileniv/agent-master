@@ -1,6 +1,6 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { join, dirname, basename } from 'path'
+import { join, dirname, basename, relative } from 'path'
 import { existsSync, promises as fsp } from 'fs'
 
 const pexec = promisify(execFile)
@@ -554,6 +554,37 @@ export async function getDirtyPaths(dir: string): Promise<Set<string>> {
   } catch {
     return new Set()
   }
+}
+
+/**
+ * git reports paths relative to the REPO root; the file panel names them
+ * relative to its SCOPE root, and the two are not always the same folder — an
+ * agent can point at a subdirectory of the repo. This is the prefix that turns
+ * one into the other, or null when the scope root isn't inside the repo at all.
+ *
+ * Both arguments must already be REAL paths. On macOS a scope root typically
+ * arrives via /var while git answers /private/var, and comparing those directly
+ * yields a nonsense prefix; on Windows the separators differ from git's output.
+ * Pure and separate from the IPC handler precisely so those cases are testable
+ * without a repository.
+ */
+export function repoRelPrefix(realRepoRoot: string, realScopeRoot: string): string | null {
+  const rel = relative(realRepoRoot, realScopeRoot).replace(/\\/g, '/')
+  if (rel.startsWith('..')) return null
+  return rel ? rel + '/' : ''
+}
+
+/**
+ * Which of `rels` (scope-relative) git considers dirty. A folder counts as
+ * dirty when anything under it is — deleting `src/` should warn if a single
+ * file inside it has uncommitted work.
+ */
+export function filterDirty(rels: string[], dirty: Set<string>, prefix: string): string[] {
+  if (dirty.size === 0) return []
+  return rels.filter((rel) => {
+    const repoRel = prefix + String(rel).replace(/\\/g, '/')
+    return dirty.has(repoRel) || [...dirty].some((d) => d.startsWith(repoRel + '/'))
+  })
 }
 
 export interface DiffResult {
