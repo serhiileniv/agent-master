@@ -23,6 +23,7 @@
     "smoke:p2": "electron scripts/smoke/phase2-smoke.cjs",
     "smoke:p3": "electron scripts/smoke/phase3-smoke.cjs",
     "smoke:file": "electron scripts/smoke/file-smoke.cjs",
+    "smoke:fileops": "electron scripts/smoke/file-ops-smoke.cjs",
     "smoke:ws": "electron scripts/smoke/ws-smoke.cjs",
     "smoke:tabs": "electron scripts/smoke/tabs-smoke.cjs",
     "smoke:wspersist": "electron scripts/smoke/wspersist-smoke.cjs",

@@ -7,11 +7,18 @@
 //   4. resolveWithin blocks '..' traversal (read/tree outside root => empty)
 //   5. save() writes; a stale mtime => {conflict}; override via expectedMtimeMs:0
 //   6. watch()+onChanged() fires when a file under root changes on disk
+//
+// It ALSO drives file-ops-smoke.cjs on the same window, so the panel's write
+// operations (create/rename/move/copy/delete + containment for each) report
+// through this one verdict. They are a separate module because they are a
+// separate concern; they run here because this is the step CI already invokes,
+// and a smoke that is not in CI does not exist.
 const { app, BrowserWindow } = require('electron')
 const { join } = require('path')
 const os = require('os')
 const fs = require('fs')
 const { registerIpc } = require(join(__dirname, '..', '..', 'out', 'main', 'ipc.js'))
+const fileOps = require(join(__dirname, 'file-ops-smoke.cjs'))
 
 app.disableHardwareAcceleration()
 
@@ -144,6 +151,17 @@ app.whenReady().then(async () => {
 
   const disk = fs.existsSync(join(TMP, 'a.txt')) ? fs.readFileSync(join(TMP, 'a.txt'), 'utf8') : ''
 
+  // The write half, on the same window and against its own fixture tree.
+  const opsCtx = fileOps.prepare()
+  let opsResult = { lines: [], pass: false }
+  try {
+    const or = await win.webContents.executeJavaScript(fileOps.buildScript(opsCtx), true)
+    opsResult = fileOps.evaluate(or, opsCtx)
+  } catch (e) {
+    opsResult = { lines: [['file ops', 'threw: ' + e.message]], pass: false }
+  }
+  fileOps.cleanup(opsCtx)
+
   const line = (k, v) => console.log('[file] ' + k.padEnd(24) + ': ' + v)
   line('file api present', r.hasApi)
   if (r.hasApi) {
@@ -163,6 +181,7 @@ app.whenReady().then(async () => {
     line('override (mtime 0)', r.overrideOk)
     line('watch onChanged fired', r.watched)
   }
+  for (const [k, v] of opsResult.lines) console.log('[file] ops: ' + k.padEnd(26) + ': ' + v)
   line('console errors', errors.length ? errors.join(' | ') : 'none')
 
   try {
@@ -187,6 +206,7 @@ app.whenReady().then(async () => {
     r.conflictOk &&
     r.overrideOk &&
     r.watched &&
+    opsResult.pass &&
     errors.length === 0
   console.log('[file] RESULT: ' + (pass ? 'PASS' : 'FAIL'))
   clearTimeout(timer)

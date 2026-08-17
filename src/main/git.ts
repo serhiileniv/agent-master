@@ -518,6 +518,44 @@ export async function cleanOrphanWorktrees(
   return { removed, keptWithWork }
 }
 
+/**
+ * Repo-relative paths with uncommitted work — modified, staged, or untracked.
+ *
+ * The file panel deletes into the user's real project, and this is the one
+ * question worth asking before it does: a committed file is recoverable from
+ * both git and the Trash, while a file with uncommitted changes has only the
+ * Trash. That distinction is worth naming in the confirmation rather than
+ * leaving the user to find out.
+ *
+ * Fails open — an empty set on any error — because the warning is an extra, and
+ * a broken git call must never be able to block a delete.
+ */
+export async function getDirtyPaths(dir: string): Promise<Set<string>> {
+  try {
+    const out = await git(dir, ['status', '--porcelain', '-z', '--untracked-files=all'], {
+      maxBuffer: 8 * 1024 * 1024
+    })
+    const dirty = new Set<string>()
+    // -z is NUL-separated with no quoting; a rename record is followed by its
+    // second path as its own NUL-terminated field.
+    const fields = out.split('\0').filter(Boolean)
+    for (let i = 0; i < fields.length; i++) {
+      const rec = fields[i]
+      if (rec.length < 4) continue
+      const status = rec.slice(0, 2)
+      dirty.add(rec.slice(3))
+      // R/C carry the origin path in the NEXT field — consume it too.
+      if (status[0] === 'R' || status[0] === 'C') {
+        i++
+        if (fields[i]) dirty.add(fields[i])
+      }
+    }
+    return dirty
+  } catch {
+    return new Set()
+  }
+}
+
 export interface DiffResult {
   branch: string
   base: string | null

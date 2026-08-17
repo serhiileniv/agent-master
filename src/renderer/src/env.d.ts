@@ -138,6 +138,31 @@ interface FileSaveResult {
   error?: string
 }
 
+/** Outcome of a create/rename/move/copy. `rel` is where the entry actually
+ *  landed, which differs from what was asked for when a paste auto-renamed. */
+interface FileOpResult {
+  ok: boolean
+  rel?: string
+  /** Something is already at the destination — nothing was touched. */
+  conflict?: boolean
+  error?: string
+}
+
+interface FileDeleteResult {
+  ok: boolean
+  /** Rel paths the OS refused to trash. */
+  failed: string[]
+  error?: string
+}
+
+/** Enough to recreate one deleted entry. `content` is base64 (binary-safe) and
+ *  absent for folders or files over the undo cap — those aren't undoable. */
+interface EntrySnapshot {
+  rel: string
+  kind: 'file' | 'dir'
+  content?: string
+}
+
 /** Shape of the per-project canvas file (.monad/canvas.json). */
 interface PersistedCanvas {
   layoutMode?: 'grid' | 'columns' | 'preview' | 'free'
@@ -220,6 +245,23 @@ interface Window {
         content: string,
         expectedMtimeMs: number
       ) => Promise<FileSaveResult>
+      create: (root: string, rel: string, kind: 'file' | 'dir') => Promise<FileOpResult>
+      rename: (root: string, rel: string, name: string) => Promise<FileOpResult>
+      move: (
+        root: string,
+        fromRel: string,
+        toRel: string,
+        opts?: { overwrite?: boolean; copy?: boolean }
+      ) => Promise<FileOpResult>
+      copyInto: (root: string, fromRel: string, destDirRel: string) => Promise<FileOpResult>
+      remove: (root: string, rels: string[]) => Promise<FileDeleteResult>
+      removePermanently: (root: string, rels: string[]) => Promise<FileDeleteResult>
+      import: (root: string, destDirRel: string, sources: string[]) => Promise<FileOpResult[]>
+      snapshot: (root: string, rels: string[]) => Promise<EntrySnapshot[]>
+      restore: (root: string, snapshots: EntrySnapshot[]) => Promise<FileOpResult[]>
+      reveal: (root: string, rel: string) => Promise<string | null>
+      absPath: (root: string, rel: string) => Promise<string | null>
+      dirtyPaths: (root: string, rels: string[]) => Promise<string[]>
       watch: (root: string) => void
       unwatch: () => void
       onChanged: (cb: (p: { root: string }) => void) => () => void

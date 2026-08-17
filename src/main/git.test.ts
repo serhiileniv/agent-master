@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unquoteGitPath, worktreeInfo, worktreeContainers } from './git'
+import { unquoteGitPath, worktreeInfo, worktreeContainers, getDirtyPaths, setGitRunner } from './git'
 
 // git quotes any path with non-ASCII or control characters in C style. Decoding
 // it wrong means the diff panel shows mojibake and, worse, "apply selected
@@ -94,6 +94,58 @@ describe('worktreeContainers', () => {
   it('never returns a path inside the repo itself', () => {
     for (const c of worktreeContainers('/home/u/proj')) {
       expect(c.replace(/\\/g, '/').startsWith('/home/u/proj')).toBe(false)
+    }
+  })
+})
+
+// Drives the extra warning the file panel shows before trashing something with
+// uncommitted work. A committed file is recoverable from git AND the Trash; one
+// with uncommitted changes only from the Trash, and that is worth saying out
+// loud. Getting this wrong in the "reports nothing" direction silently removes
+// the warning, which is why the failure cases are asserted too.
+describe('getDirtyPaths', () => {
+  const withStatus = async (stdout: string): Promise<Set<string>> => {
+    const restore = setGitRunner(async () => stdout)
+    try {
+      return await getDirtyPaths('/repo')
+    } finally {
+      restore()
+    }
+  }
+
+  it('reports modified, staged and untracked paths', async () => {
+    const dirty = await withStatus(
+      ' M src/a.ts\0M  src/b.ts\0?? src/new.ts\0A  src/added.ts\0'
+    )
+    expect([...dirty].sort()).toEqual(['src/a.ts', 'src/added.ts', 'src/b.ts', 'src/new.ts'])
+  })
+
+  it('is empty for a clean tree', async () => {
+    expect((await withStatus('')).size).toBe(0)
+  })
+
+  // A rename record carries its ORIGIN path in the next NUL-separated field.
+  // Reading that field as its own record would produce a bogus entry and skip
+  // a real one.
+  it('consumes both halves of a rename record', async () => {
+    const dirty = await withStatus('R  src/new.ts\0src/old.ts\0 M src/other.ts\0')
+    expect([...dirty].sort()).toEqual(['src/new.ts', 'src/old.ts', 'src/other.ts'])
+  })
+
+  it('handles a path containing a space', async () => {
+    expect([...(await withStatus(' M src/two words.ts\0'))]).toEqual(['src/two words.ts'])
+  })
+
+  // The warning is an extra. A broken git call must never be able to block a
+  // delete, so this fails open rather than throwing.
+  it('reports nothing rather than throwing when git fails', async () => {
+    const restore = setGitRunner(async () => {
+      throw new Error('not a repository')
+    })
+    try {
+      expect((await getDirtyPaths('/repo')).size).toBe(0)
+    } finally {
+      restore()
     }
   })
 })
