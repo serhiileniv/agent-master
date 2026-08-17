@@ -748,6 +748,139 @@ describe('file panel', () => {
   })
 })
 
+// The file panel can now create, rename, move and delete real files. These are
+// the two ways an operation on disk has to be reflected in the editor showing
+// one of them — get either wrong and the editor is left pointing at a path that
+// no longer exists, or silently loses unsaved work.
+describe('file panel: the editor follows the file', () => {
+  beforeEach(() => {
+    st().createWorkspace('A')
+    st().openFilePanel({ kind: 'root' })
+  })
+
+  it('retitles the open file when it is renamed', () => {
+    st().openFile('src/index.ts')
+    st().fileRenamed('src/index.ts', 'src/main.ts')
+    expect(ws().filePanel.openPath).toBe('src/main.ts')
+  })
+
+  // Dragging `src/` somewhere would otherwise orphan the open `src/index.ts`.
+  it('re-roots the open file when an ancestor folder moves', () => {
+    st().openFile('src/index.ts')
+    st().fileRenamed('src', 'app/src')
+    expect(ws().filePanel.openPath).toBe('app/src/index.ts')
+  })
+
+  it('leaves an unrelated open file alone', () => {
+    st().openFile('README.md')
+    st().fileRenamed('src/index.ts', 'src/main.ts')
+    expect(ws().filePanel.openPath).toBe('README.md')
+  })
+
+  // `src2` is not inside `src`, despite the prefix.
+  it('does not re-root a file whose path merely shares a prefix', () => {
+    st().openFile('src2/index.ts')
+    st().fileRenamed('src', 'app/src')
+    expect(ws().filePanel.openPath).toBe('src2/index.ts')
+  })
+
+  it('closes the editor when the file it shows is deleted', () => {
+    st().openFile('src/index.ts')
+    st().fileDeleted(['src/index.ts'])
+    expect(ws().filePanel.openPath).toBeNull()
+  })
+
+  it('closes the editor when a folder containing the open file is deleted', () => {
+    st().openFile('src/index.ts')
+    st().fileDeleted(['src'])
+    expect(ws().filePanel.openPath).toBeNull()
+  })
+
+  // The buffer is the only remaining copy of work that was never written —
+  // closing it would destroy exactly what the user still has.
+  it('never closes an editor with unsaved edits', () => {
+    st().openFile('src/index.ts')
+    st().setFileDirty(true)
+    st().fileDeleted(['src/index.ts'])
+    expect(ws().filePanel.openPath).toBe('src/index.ts')
+    expect(ws().filePanel.dirty).toBe(true)
+  })
+
+  it('leaves the editor alone when something else is deleted', () => {
+    st().openFile('README.md')
+    st().fileDeleted(['src/index.ts'])
+    expect(ws().filePanel.openPath).toBe('README.md')
+  })
+})
+
+// Both confirmations carry a "Don't ask me again" checkbox. Ticking it has to
+// survive a restart, or the user re-suppresses it every session.
+//
+// This environment's jsdom ships no localStorage, so the store's own guards
+// make every write a silent no-op here — which would let a broken persistence
+// path pass unnoticed. Hence a real fake, and a genuine module reload to stand
+// in for the restart.
+describe('file panel: confirmation preferences', () => {
+  let backing: Record<string, string>
+
+  beforeEach(() => {
+    backing = {}
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in backing ? backing[k] : null),
+      setItem: (k: string, v: string) => {
+        backing[k] = String(v)
+      },
+      removeItem: (k: string) => {
+        delete backing[k]
+      }
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  it('defaults to asking', () => {
+    expect(st().confirmDelete).toBe(true)
+    expect(st().confirmMove).toBe(true)
+  })
+
+  it('writes a suppression out under its own key', () => {
+    st().setConfirmDelete(false)
+    expect(st().confirmDelete).toBe(false)
+    expect(backing['vectro.confirmDelete']).toBe('false')
+
+    st().setConfirmMove(false)
+    expect(st().confirmMove).toBe(false)
+    expect(backing['vectro.confirmDragAndDrop']).toBe('false')
+  })
+
+  it('can be turned back on', () => {
+    st().setConfirmDelete(false)
+    st().setConfirmDelete(true)
+    expect(st().confirmDelete).toBe(true)
+    expect(backing['vectro.confirmDelete']).toBe('true')
+  })
+
+  // The restart: a fresh module registry reads initial state from storage again.
+  it('reads a stored suppression back on a fresh start', async () => {
+    backing['vectro.confirmDelete'] = 'false'
+    backing['vectro.confirmDragAndDrop'] = 'false'
+    vi.resetModules()
+    const fresh = await import('./store')
+    expect(fresh.useStore.getState().confirmDelete).toBe(false)
+    expect(fresh.useStore.getState().confirmMove).toBe(false)
+  })
+
+  it('still asks when storage holds something unparseable', async () => {
+    backing['vectro.confirmDelete'] = 'not json'
+    vi.resetModules()
+    const fresh = await import('./store')
+    expect(fresh.useStore.getState().confirmDelete).toBe(true)
+  })
+})
+
 describe('setUpdate', () => {
   it('keeps the dismissal for the same version', () => {
     st().setUpdate({ current: '1.0.0', latest: '1.1.0', url: 'u' })

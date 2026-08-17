@@ -24,12 +24,26 @@ import {
   getAgentDiff,
   mergeAgent,
   applyAgentFiles,
+  getDirtyPaths,
+  repoRelPrefix,
+  filterDirty,
   friendlyGitError
 } from './git'
 import {
   listDir,
   readFile as readScopedFile,
-  saveFile as saveScopedFile
+  saveFile as saveScopedFile,
+  createEntry,
+  renameEntry,
+  moveEntry,
+  copyInto,
+  deleteEntries,
+  deleteEntriesPermanently,
+  importFiles,
+  snapshotEntry,
+  restoreSnapshot,
+  resolveWithinReal,
+  type EntrySnapshot
 } from './scoped-files'
 import { createWorkspaceStore } from './workspace-store'
 import { detectShells, detectAgents } from './shells'
@@ -375,6 +389,97 @@ export function registerIpc(
       }: { root: string; rel: string; content: string; expectedMtimeMs: number }
     ) => saveScopedFile(root, rel, content, expectedMtimeMs)
   )
+
+  // --- File operations (create / rename / move / copy / delete / import) ---
+  // Every one of these resolves symlinks before acting (resolveWithinReal), not
+  // just `..` — a link inside the project must not become a route to write or
+  // destroy something outside it. Deleting always means the OS trash: the
+  // permanent path is a separate channel the renderer only reaches after the
+  // trash has already refused and the user has said so.
+  ipcMain.handle(
+    'file:create',
+    (_e, { root, rel, kind }: { root: string; rel: string; kind: 'file' | 'dir' }) =>
+      createEntry(root, rel, kind)
+  )
+  ipcMain.handle(
+    'file:rename',
+    (_e, { root, rel, name }: { root: string; rel: string; name: string }) =>
+      renameEntry(root, rel, name)
+  )
+  ipcMain.handle(
+    'file:move',
+    (
+      _e,
+      {
+        root,
+        fromRel,
+        toRel,
+        overwrite,
+        copy
+      }: { root: string; fromRel: string; toRel: string; overwrite?: boolean; copy?: boolean }
+    ) => moveEntry(root, fromRel, toRel, { overwrite, copy })
+  )
+  ipcMain.handle(
+    'file:copyInto',
+    (_e, { root, fromRel, destDirRel }: { root: string; fromRel: string; destDirRel: string }) =>
+      copyInto(root, fromRel, destDirRel)
+  )
+  ipcMain.handle('file:delete', (_e, { root, rels }: { root: string; rels: string[] }) =>
+    // shell.trashItem is injected rather than imported by scoped-files so that
+    // module stays electron-free and unit-testable. It resolves void and throws
+    // on refusal, which is exactly the contract deleteEntries expects.
+    deleteEntries(root, rels, async (abs) => shell.trashItem(abs))
+  )
+  ipcMain.handle('file:deletePermanently', (_e, { root, rels }: { root: string; rels: string[] }) =>
+    deleteEntriesPermanently(root, rels)
+  )
+  ipcMain.handle(
+    'file:import',
+    (_e, { root, destDirRel, sources }: { root: string; destDirRel: string; sources: string[] }) =>
+      importFiles(root, destDirRel, sources)
+  )
+  ipcMain.handle('file:snapshot', (_e, { root, rels }: { root: string; rels: string[] }) =>
+    Promise.all((rels ?? []).map((rel) => snapshotEntry(root, rel))).then((snaps) =>
+      snaps.filter((s): s is EntrySnapshot => s !== null)
+    )
+  )
+  ipcMain.handle(
+    'file:restore',
+    (_e, { root, snapshots }: { root: string; snapshots: EntrySnapshot[] }) =>
+      Promise.all((snapshots ?? []).map((s) => restoreSnapshot(root, s)))
+  )
+  // Absolute path of a rel, for Copy Path / Reveal in Finder. Goes through the
+  // same strict guard so the menu can't be used to name something outside.
+  ipcMain.handle('file:reveal', async (_e, { root, rel }: { root: string; rel: string }) => {
+    const abs = await resolveWithinReal(root, rel)
+    if (!abs) return null
+    shell.showItemInFolder(abs)
+    return abs
+  })
+  ipcMain.handle('file:absPath', (_e, { root, rel }: { root: string; rel: string }) =>
+    resolveWithinReal(root, rel)
+  )
+  // Which of `rels` have uncommitted work. Drives the extra warning on delete —
+  // a committed file is recoverable from git AND the Trash, one with
+  // uncommitted changes only from the Trash.
+  ipcMain.handle('file:dirtyPaths', async (_e, { root, rels }: { root: string; rels: string[] }) => {
+    if (!Array.isArray(rels) || rels.length === 0) return []
+    const repoRoot = await getRepoRootSafe(root)
+    if (!repoRoot) return []
+    const dirty = await getDirtyPaths(repoRoot)
+    if (dirty.size === 0) return []
+    // Both sides go through realpath before being compared — see repoRelPrefix,
+    // where the reasoning and the platform cases live.
+    let prefix: string | null = null
+    try {
+      const [realRoot, realRepo] = await Promise.all([fs.realpath(root), fs.realpath(repoRoot)])
+      prefix = repoRelPrefix(realRepo, realRoot)
+    } catch {
+      return []
+    }
+    if (prefix === null) return []
+    return filterDirty(rels, dirty, prefix)
+  })
 
   // Recursive fs.watch on the scope root, debounced, emitting `file:changed`.
   // ONE watcher per window: a new watch closes the previous one. Recursive watch

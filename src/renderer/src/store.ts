@@ -267,6 +267,11 @@ interface AppState {
   /** Width (px) of the right-docked file panel — global, shared by every
    *  workspace, persisted across restart. */
   filePanelWidth: number
+  /** Ask before moving a file panel entry to the Trash. Turned off by the
+   *  confirmation's own "Don't ask me again"; persisted. */
+  confirmDelete: boolean
+  /** Ask before a drag-and-drop move in the file panel. Same checkbox pattern. */
+  confirmMove: boolean
 
   /** Open a folder as a new live workspace tab (or focus it if already open). */
   openWorkspace: (ref: ProjectRef, saved: PersistedCanvas | null, git: GitInfo) => void
@@ -319,12 +324,19 @@ interface AppState {
   openFile: (relPath: string | null) => void
   /** Mark the open file dirty / clean (editor buffer state). */
   setFileDirty: (dirty: boolean) => void
+  /** Keep the open editor pointing at a file (or a file under a folder) that
+   *  was just renamed or moved. */
+  fileRenamed: (fromRel: string, toRel: string) => void
+  /** Close the open editor if it showed one of these — unless it's dirty. */
+  fileDeleted: (rels: string[]) => void
   /** Hide the panel (keeps scope + open file for a later re-open). */
   closeFilePanel: () => void
   /** Flip the panel's visibility; defaults to root scope when opening fresh. */
   toggleFilePanel: () => void
   /** Set the global panel width (px); clamps to [260, 820] and persists. */
   setFilePanelWidth: (px: number) => void
+  setConfirmDelete: (on: boolean) => void
+  setConfirmMove: (on: boolean) => void
   requestClose: (id: string) => void
   clearPendingClose: () => void
   requestBulkClose: (ids: string[]) => void
@@ -503,6 +515,34 @@ function loadFilePanelWidth(): number {
 function saveFilePanelWidth(px: number): void {
   try {
     localStorage.setItem(FILE_PANEL_WIDTH_KEY, JSON.stringify(px))
+  } catch {
+    /* ignore */
+  }
+}
+
+// The two "Don't ask me again" checkboxes in the file panel's confirmations.
+// Both default to ON — asking is the safe default, and the user opts out of it
+// rather than into it. Same top-level + legacy-prefix treatment as the width.
+//
+// Note what these DON'T suppress: a delete of something with uncommitted git
+// changes always asks, because that is the one case neither the Trash nor git
+// history can be relied on to recover.
+const CONFIRM_DELETE_KEY = 'vectro.confirmDelete'
+const CONFIRM_MOVE_KEY = 'vectro.confirmDragAndDrop'
+
+function loadConfirmPref(key: string): boolean {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return true
+    return JSON.parse(raw) !== false
+  } catch {
+    return true
+  }
+}
+
+function saveConfirmPref(key: string, on: boolean): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(on))
   } catch {
     /* ignore */
   }
@@ -798,6 +838,8 @@ export const useStore = create<AppState>((set, get) => ({
   panY: 0,
   zoom: 1,
   filePanelWidth: loadFilePanelWidth(),
+  confirmDelete: loadConfirmPref(CONFIRM_DELETE_KEY),
+  confirmMove: loadConfirmPref(CONFIRM_MOVE_KEY),
 
   openWorkspace: (ref, saved, git) =>
     set((s) => {
@@ -1088,6 +1130,50 @@ export const useStore = create<AppState>((set, get) => ({
       }
     }),
 
+  // The editor follows the file it is showing. A rename retitles it in place
+  // rather than orphaning it, including when an ANCESTOR folder is what moved —
+  // otherwise dragging `src/` somewhere would leave the open `src/index.ts`
+  // pointing at a path that no longer exists.
+  fileRenamed: (fromRel, toRel) =>
+    set((s) => {
+      const ws = activeWs(s)
+      if (!ws) return {}
+      const open = ws.filePanel.openPath
+      if (!open) return {}
+      const next =
+        open === fromRel
+          ? toRel
+          : open.startsWith(fromRel + '/')
+            ? toRel + open.slice(fromRel.length)
+            : null
+      if (next === null) return {}
+      return {
+        liveWorkspaces: mapWs(s.liveWorkspaces, ws.id, (w) => ({
+          ...w,
+          filePanel: { ...w.filePanel, openPath: next }
+        }))
+      }
+    }),
+
+  // Deleting from inside the app closes the editor — but NEVER when it has
+  // unsaved edits. VS Code makes the same exception, and here it matters more:
+  // the buffer is the only remaining copy of work that was never written.
+  fileDeleted: (rels) =>
+    set((s) => {
+      const ws = activeWs(s)
+      if (!ws) return {}
+      const open = ws.filePanel.openPath
+      if (!open || ws.filePanel.dirty) return {}
+      const hit = rels.some((rel) => open === rel || open.startsWith(rel + '/'))
+      if (!hit) return {}
+      return {
+        liveWorkspaces: mapWs(s.liveWorkspaces, ws.id, (w) => ({
+          ...w,
+          filePanel: { ...w.filePanel, openPath: null, dirty: false }
+        }))
+      }
+    }),
+
   setFileDirty: (dirty) =>
     set((s) => {
       const ws = activeWs(s)
@@ -1141,6 +1227,16 @@ export const useStore = create<AppState>((set, get) => ({
     const filePanelWidth = clampNum(px, FILE_PANEL_MIN, FILE_PANEL_MAX, FILE_PANEL_DEFAULT)
     saveFilePanelWidth(filePanelWidth)
     set({ filePanelWidth })
+  },
+
+  setConfirmDelete: (on) => {
+    saveConfirmPref(CONFIRM_DELETE_KEY, on)
+    set({ confirmDelete: on })
+  },
+
+  setConfirmMove: (on) => {
+    saveConfirmPref(CONFIRM_MOVE_KEY, on)
+    set({ confirmMove: on })
   },
 
   // The pane owning `id` runs the guarded close (dirty-check + confirm); these

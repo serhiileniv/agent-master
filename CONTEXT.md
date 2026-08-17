@@ -68,6 +68,23 @@ A git repository root (`repoRoot`). Used consistently and unambiguously througho
 The tiling surface a workspace's agents are laid out on (`Stage.tsx`). One Stage is mounted per live
 workspace. Historically also called the **canvas** — see below.
 
+### Scope root
+
+The absolute directory the file panel is confined to. Every path the renderer sends the file API is
+relative to it, and nothing outside it is reachable — see `resolveWithin` / `resolveWithinReal` in
+`src/main/scoped-files.ts`. Resolved by `agentPath()`, so it follows the selected agent's folder.
+
+### Entry
+
+One file or folder row in the file tree (`FileEntry`, `{ name, kind: 'dir' | 'file' }`). Say *entry*
+rather than "node" or "item" — the operations are named after it (`createEntry`, `renameEntry`,
+`moveEntry`, `deleteEntries`).
+
+### Inline editor
+
+The text box that replaces a row in the file tree while creating or renaming, with its validation
+message underneath. Distinct from the **file editor**, which is the CodeMirror pane below the tree.
+
 ---
 
 ## Naming hazards

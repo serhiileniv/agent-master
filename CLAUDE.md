@@ -96,6 +96,7 @@ Changes near these can destroy a user's work. Slow down, and always run the list
 | Agent cwd pinning after spawn | The single most important safety property in the app — a shell profile that `cd`s must not be able to move an agent out of its worktree into the user's real repo | `smoke:p2` |
 | Merge onto the base branch | This is the path that lands work on the user's actual branch | `smoke:p3` |
 | File panel path handling | The project-root boundary blocks `../` traversal | `smoke:file` |
+| File panel create/rename/move/delete | These act on the user's REAL project folder. The write guard also resolves symlinks and refuses absolute paths, and delete goes to the OS trash — never `fs.rm` | `smoke:file` (drives `file-ops-smoke.cjs`), or `smoke:fileops` alone |
 | `workspaces.json` read/write | Atomic write; a corrupt file loses every workspace the user has | `smoke:wspersist`, `smoke:ws` |
 | Preload bridge / CSP (`src/main/index.ts`) | Widening the API surface widens the attack surface | Justify explicitly |
 

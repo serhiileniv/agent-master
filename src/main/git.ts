@@ -1,6 +1,6 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { join, dirname, basename } from 'path'
+import { join, dirname, basename, relative } from 'path'
 import { existsSync, promises as fsp } from 'fs'
 
 const pexec = promisify(execFile)
@@ -516,6 +516,75 @@ export async function cleanOrphanWorktrees(
   const keptWithWork = orphans.filter((o) => o.hasWork).length
   const removed = await removeOrphanWorktrees(repoRoot, orphans)
   return { removed, keptWithWork }
+}
+
+/**
+ * Repo-relative paths with uncommitted work — modified, staged, or untracked.
+ *
+ * The file panel deletes into the user's real project, and this is the one
+ * question worth asking before it does: a committed file is recoverable from
+ * both git and the Trash, while a file with uncommitted changes has only the
+ * Trash. That distinction is worth naming in the confirmation rather than
+ * leaving the user to find out.
+ *
+ * Fails open — an empty set on any error — because the warning is an extra, and
+ * a broken git call must never be able to block a delete.
+ */
+export async function getDirtyPaths(dir: string): Promise<Set<string>> {
+  try {
+    const out = await git(dir, ['status', '--porcelain', '-z', '--untracked-files=all'], {
+      maxBuffer: 8 * 1024 * 1024
+    })
+    const dirty = new Set<string>()
+    // -z is NUL-separated with no quoting; a rename record is followed by its
+    // second path as its own NUL-terminated field.
+    const fields = out.split('\0').filter(Boolean)
+    for (let i = 0; i < fields.length; i++) {
+      const rec = fields[i]
+      if (rec.length < 4) continue
+      const status = rec.slice(0, 2)
+      dirty.add(rec.slice(3))
+      // R/C carry the origin path in the NEXT field — consume it too.
+      if (status[0] === 'R' || status[0] === 'C') {
+        i++
+        if (fields[i]) dirty.add(fields[i])
+      }
+    }
+    return dirty
+  } catch {
+    return new Set()
+  }
+}
+
+/**
+ * git reports paths relative to the REPO root; the file panel names them
+ * relative to its SCOPE root, and the two are not always the same folder — an
+ * agent can point at a subdirectory of the repo. This is the prefix that turns
+ * one into the other, or null when the scope root isn't inside the repo at all.
+ *
+ * Both arguments must already be REAL paths. On macOS a scope root typically
+ * arrives via /var while git answers /private/var, and comparing those directly
+ * yields a nonsense prefix; on Windows the separators differ from git's output.
+ * Pure and separate from the IPC handler precisely so those cases are testable
+ * without a repository.
+ */
+export function repoRelPrefix(realRepoRoot: string, realScopeRoot: string): string | null {
+  const rel = relative(realRepoRoot, realScopeRoot).replace(/\\/g, '/')
+  if (rel.startsWith('..')) return null
+  return rel ? rel + '/' : ''
+}
+
+/**
+ * Which of `rels` (scope-relative) git considers dirty. A folder counts as
+ * dirty when anything under it is — deleting `src/` should warn if a single
+ * file inside it has uncommitted work.
+ */
+export function filterDirty(rels: string[], dirty: Set<string>, prefix: string): string[] {
+  if (dirty.size === 0) return []
+  return rels.filter((rel) => {
+    const repoRel = prefix + String(rel).replace(/\\/g, '/')
+    return dirty.has(repoRel) || [...dirty].some((d) => d.startsWith(repoRel + '/'))
+  })
 }
 
 export interface DiffResult {

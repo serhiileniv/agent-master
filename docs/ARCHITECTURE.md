@@ -16,7 +16,7 @@ src/
     ipc.ts            IPC handlers (pty / project / git / worktree / diff-merge / update)
     pty-manager.ts    node-pty session manager
     git.ts            git + worktree + diff/merge
-    scoped-files.ts   file panel reads/writes, confined to a scope root
+    scoped-files.ts   file panel reads + create/rename/move/copy/delete, confined to a scope root
     workspace-store.ts  atomic, serialized read/write of workspaces.json
     update.ts         newer-release check against the release feed
   preload/     contextBridge API (window.api.{pty,project,git,worktree,update,platform})
@@ -105,6 +105,14 @@ to every release — see [RELEASING.md](RELEASING.md).
 - A strict Content Security Policy is applied in production builds (`src/main/index.ts`).
 - The file panel enforces a project-root boundary; `smoke:file` asserts that `../` traversal is
   blocked for both reads and directory listings.
+- The panel's **write** operations (create, rename, move, copy, delete) use a stricter guard than
+  its reads: `resolveWithinReal` resolves symlinks before acting, so a link inside the project can't
+  be used to reach outside it, and an absolute path is refused rather than reinterpreted as
+  relative. Reads keep the older lexical guard, whose accepted limitation is documented on
+  `resolveWithin`. Deleting always means the OS trash — nothing here calls `fs.rm` on a user's file
+  except an explicit, separately-confirmed fallback after the trash has already refused.
+  `file-ops-smoke.cjs` asserts containment for each operation individually; it runs as part of
+  `smoke:file`, which is the step CI already invokes.
 
 See [SECURITY.md](../SECURITY.md) for the threat model and how to report a vulnerability.
 
@@ -119,8 +127,10 @@ npm run typecheck
 npm run lint        # bug-focused rules (react-hooks + a small correctness set)
 npm run test        # unit tests: tiling math, shell quoting, git path decoding,
                     # the git worktree/merge/apply lifecycle against a scripted git,
-                    # the file-panel containment guard, workspaces.json atomicity,
-                    # the agent status/attention heuristics, and the quiet boot
+                    # the file-panel containment guard and its write operations,
+                    # the file tree's selection/drag/undo models and icon mapping,
+                    # workspaces.json atomicity, the agent status/attention
+                    # heuristics, and the quiet boot
 ```
 
 **Integration smoke tests** — these drive the real built bundles and IPC under a headless Electron,
@@ -131,7 +141,9 @@ npm run smoke:pty          # PTY loads under Electron ABI + shell echo
 npm run smoke:p1           # preload bridge, legacy canvas load, renderer PTY
 npm run smoke:p2           # git detect, worktree isolation, agent cwd pinning, teardown
 npm run smoke:p3           # diff sees changes, merge lands work on base branch
-npm run smoke:file         # file tree/read/save + path-traversal guard
+npm run smoke:file         # file tree/read/save + path-traversal guard, AND the
+                           # panel's write operations (it drives file-ops-smoke.cjs)
+npm run smoke:fileops      # just the write half, for iterating on it alone
 npm run smoke:ws           # workspace store
 npm run smoke:tabs         # tab behaviour
 npm run smoke:wspersist    # workspace persistence + legacy migration
