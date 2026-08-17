@@ -37,14 +37,28 @@ describe('checkForUpdate fallback', () => {
   beforeEach(() => {
     vi.resetModules()
     checkForUpdates.mockReset()
-    // Only meaningful on win32, where canAutoUpdate() is true; the suite runs
-    // there. Elsewhere the updater branch is skipped and the REST path is the
-    // only path anyway, which these assertions still hold for.
     process.env.AGENTMASTER_UPDATE_CHECK = '1'
+    // Force canAutoUpdate() true so the electron-updater branch is exercised on
+    // EVERY platform, not just win32.
+    //
+    // This used to be left to the real platform check, with a comment claiming
+    // the assertions held off-Windows anyway. They do not: canAutoUpdate() is
+    // `win32 && isPackaged`, so on macOS/Linux checkForUpdate skips the updater
+    // entirely and answers from the Releases API — which is the exact thing the
+    // two updater-branch tests below assert does NOT happen. Both failed on any
+    // non-Windows machine, and the other three passed for the wrong reason
+    // (never reaching the updater at all). Since CI is windows-latest, nobody
+    // saw it.
+    //
+    // AGENTMASTER_DEV_UPDATE_CONFIG is the supported override (see
+    // canAutoUpdate in update.ts) and needs no real file here: only
+    // initAutoUpdate reads its value, and these tests only call checkForUpdate.
+    process.env.AGENTMASTER_DEV_UPDATE_CONFIG = '/nonexistent/dev-app-update.yml'
   })
 
   afterEach(() => {
     delete process.env.AGENTMASTER_UPDATE_CHECK
+    delete process.env.AGENTMASTER_DEV_UPDATE_CONFIG
     vi.unstubAllGlobals()
   })
 
