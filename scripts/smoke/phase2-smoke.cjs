@@ -64,11 +64,19 @@ app.whenReady().then(async () => {
   registerIpc(() => win)
   await win.loadFile(join(__dirname, '..', '..', 'out', 'renderer', 'index.html'))
 
+  // Both PTY proofs below used to be hard-coded to powershell.exe, so on macOS
+  // and Linux they spawned a shell that does not exist: `agent cmd completed`,
+  // `marker file in worktree` and `interactive+cd lands` were all false and p2
+  // could only ever FAIL off Windows. CI is windows-latest, so it stayed green
+  // there while the most safety-critical smoke in the repo was unrunnable on the
+  // machine the work is actually done on. The Windows commands are unchanged —
+  // this only adds the POSIX equivalents beside them.
   const createScript = `(async () => {
-    // Non-interactive spawn => no PSReadLine echo/ANSI; clean cwd proof.
-    const runArgs = (cwd, psCommand, marker, t=15000) => new Promise((resolve) => {
+    const isWin = ${JSON.stringify(process.platform === 'win32')}
+    // Non-interactive spawn => no shell echo/ANSI; clean cwd proof.
+    const runArgs = (cwd, shell, args, marker, t=15000) => new Promise((resolve) => {
       let buf = ''
-      window.api.pty.spawn({ shell: 'powershell.exe', args: ['-NoProfile','-NoLogo','-Command', psCommand], cwd, cols: 120, rows: 30 }).then((pid) => {
+      window.api.pty.spawn({ shell, args, cwd, cols: 120, rows: 30 }).then((pid) => {
         const off = window.api.pty.onData(pid, (d) => {
           buf += d
           if (buf.includes(marker)) { off(); window.api.pty.kill(pid); resolve({ seen: true, buf }) }
@@ -78,18 +86,26 @@ app.whenReady().then(async () => {
     })
     const info = await window.api.git.info(${JSON.stringify(REPO)})
     const wt = await window.api.worktree.create(${JSON.stringify(REPO)}, ${JSON.stringify(AGENT_ID)}, 'worktree')
-    const wtRun = await runArgs(wt.cwd, 'Write-Output ("CWD=" + (Get-Location).Path); New-Item -ItemType File marker.txt -Force > $null; Write-Output DONE_WT', 'DONE_WT', 20000)
-    // Product mechanism: INTERACTIVE shell + Set-Location enforcement. Detect
-    // via the filesystem only (interactive PSReadLine echoes the command, which
-    // would race any stdout marker). Fire, wait, then main checks marker2.
+    const probeShell = isWin ? 'powershell.exe' : 'bash'
+    const probeArgs = isWin
+      ? ['-NoProfile','-NoLogo','-Command', 'Write-Output ("CWD=" + (Get-Location).Path); New-Item -ItemType File marker.txt -Force > $null; Write-Output DONE_WT']
+      : ['-c', 'echo "CWD=$(pwd)"; touch marker.txt; echo DONE_WT']
+    const wtRun = await runArgs(wt.cwd, probeShell, probeArgs, 'DONE_WT', 20000)
+    // Product mechanism: INTERACTIVE shell + cd enforcement — the same pin the
+    // app injects at boot. Detect via the filesystem only (an interactive shell
+    // echoes the command, which would race any stdout marker). Fire, wait, then
+    // main checks marker2. No shell/args => pty-manager picks the platform
+    // default as a LOGIN shell, which is the path the product actually uses.
     const fireAndWait = (cwd, cmd, ms=7000) => new Promise((resolve) => {
       window.api.pty.spawn({ cwd, cols: 120, rows: 30 }).then((pid) => {
         window.api.pty.write(pid, cmd + '\\r')
         setTimeout(() => { window.api.pty.kill(pid); resolve(true) }, ms)
       })
     })
-    const cdCmd = "Set-Location -LiteralPath '" + wt.cwd.replace(/'/g, "''") + "'"
-    await fireAndWait(wt.cwd, cdCmd + '; New-Item -ItemType File marker2.txt -Force > $null')
+    const cdCmd = isWin
+      ? "Set-Location -LiteralPath '" + wt.cwd.replace(/'/g, "''") + "'; New-Item -ItemType File marker2.txt -Force > $null"
+      : "cd '" + wt.cwd.replace(/'/g, "'\\\\''") + "'; touch marker2.txt"
+    await fireAndWait(wt.cwd, cdCmd)
     const cwdLine = (wtRun.buf.match(/CWD=([^\\r\\n]+)/) || [])[1] || ''
     return { info, wt, ranInWorktree: wtRun.seen, reportedCwd: cwdLine.trim() }
   })()`
