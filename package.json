@@ -1,6 +1,6 @@
 {
   "name": "agentmaster",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Agent Master — a cross-platform stage for running terminals and AI agents in parallel",
   "main": "./out/main/index.js",
   "author": "Serhii Leniv",

@@ -2,7 +2,7 @@
 
 - **Status:** approved
 - **Written:** 2026-08-15
-- **Shipped in:** v0.0.0 _(fill on merge)_
+- **Shipped in:** v0.1.33
 
 ## Problem
 
