@@ -167,7 +167,12 @@ const api = {
       const handler = (_e: unknown, action: 'copy' | 'paste' | 'selectAll'): void => cb(action)
       ipcRenderer.on('menu:edit', handler)
       return () => ipcRenderer.removeListener('menu:edit', handler)
-    }
+    },
+    // The other half of that round trip: hand a command back for Chromium to
+    // apply to the focused element, for the surfaces the renderer shouldn't be
+    // editing by hand (the file editor, a plain text selection).
+    nativeEdit: (action: 'copy' | 'paste' | 'selectAll'): void =>
+      ipcRenderer.send('edit:native', { action })
   },
   shells: {
     list: (): Promise<unknown> => ipcRenderer.invoke('shells:list')

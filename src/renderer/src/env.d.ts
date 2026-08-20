@@ -222,6 +222,7 @@ interface Window {
     getPathForFile: (file: File) => string
     menu: {
       onEdit: (cb: (action: 'copy' | 'paste' | 'selectAll') => void) => () => void
+      nativeEdit: (action: 'copy' | 'paste' | 'selectAll') => void
     }
     shells: {
       list: () => Promise<ShellInfo[]>

@@ -1,5 +1,13 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { quotePaths, shellFamily, refreshAgents, terminals } from './terminalRegistry'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
+import {
+  quotePaths,
+  shellFamily,
+  refreshAgents,
+  handleMenuEdit,
+  isRichEditable,
+  terminals
+} from './terminalRegistry'
+import { useStore, type WorkspaceSession } from './store'
 
 // shellFamily consults window.api.platform for the "unknown shell" fallback.
 beforeAll(() => {
@@ -107,5 +115,190 @@ describe('refreshAgents', () => {
     refreshAgents(['c'])
     expect(t.calls).toEqual([])
     terminals.clear()
+  })
+})
+
+// The macOS Edit menu owns ⌘C/⌘V/⌘A: AppKit consumes the keystroke before the
+// page sees it, so whatever handleMenuEdit decides is the ONLY thing that
+// happens. Getting the decision wrong is not a dead key — it puts the command on
+// a terminal, which is how "paste into the file editor" became "type the
+// clipboard onto a running agent's command line".
+describe('handleMenuEdit routing', () => {
+  const nativeEdit = vi.fn()
+  const write = vi.fn()
+  const read = vi.fn(async () => 'CLIPBOARD')
+
+  /** A terminal that is the fallback target: registered, selected, selectable. */
+  const fakeTerm = (): {
+    term: never
+    paste: ReturnType<typeof vi.fn>
+    selectAll: ReturnType<typeof vi.fn>
+  } => {
+    const paste = vi.fn()
+    const selectAll = vi.fn()
+    return {
+      term: {
+        paste,
+        selectAll,
+        focus: vi.fn(),
+        hasSelection: () => true,
+        getSelection: () => 'TERMINAL SCROLLBACK'
+      } as never,
+      paste,
+      selectAll
+    }
+  }
+
+  /** One live workspace with one selected agent — an unambiguous fallback target. */
+  const withOneAgent = (id: string): void => {
+    useStore.setState({
+      liveWorkspaces: [
+        {
+          id: 'w1',
+          name: 'w',
+          defaultPath: '/tmp',
+          agents: [{ id }],
+          selectedIds: [id],
+          focusedId: null
+        } as unknown as WorkspaceSession
+      ],
+      activeWorkspaceId: 'w1'
+    })
+  }
+
+  beforeEach(() => {
+    ;(window as unknown as { api: unknown }).api = {
+      platform: 'darwin',
+      clipboard: { read, write, hasImage: async () => false, readFiles: async () => [] },
+      menu: { nativeEdit }
+    }
+    nativeEdit.mockClear()
+    write.mockClear()
+    document.body.innerHTML = ''
+    window.getSelection()?.removeAllRanges()
+    terminals.clear()
+  })
+
+  /** The file editor's CodeMirror surface: focusable, editable, not an input. */
+  const focusEditor = (): HTMLElement => {
+    const cm = document.createElement('div')
+    cm.className = 'cm-content'
+    cm.setAttribute('contenteditable', 'true')
+    cm.tabIndex = 0
+    document.body.appendChild(cm)
+    cm.focus()
+    return cm
+  }
+
+  /** Select the contents of a non-editable element, as a mouse drag would. */
+  const selectText = (el: Element): void => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+  }
+
+  it('sends every command to Chromium when the file editor has focus', async () => {
+    withOneAgent('a1')
+    const t = fakeTerm()
+    terminals.set('a1', t.term)
+    focusEditor()
+
+    for (const action of ['copy', 'paste', 'selectAll'] as const) {
+      nativeEdit.mockClear()
+      await handleMenuEdit(action)
+      expect(nativeEdit).toHaveBeenCalledWith(action)
+    }
+    // …and nothing reached the terminal on the way past.
+    expect(t.paste).not.toHaveBeenCalled()
+    expect(t.selectAll).not.toHaveBeenCalled()
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('copies a plain text selection (diff, file preview) rather than the terminal', async () => {
+    withOneAgent('a1')
+    const t = fakeTerm()
+    terminals.set('a1', t.term)
+    const diff = document.createElement('div')
+    diff.className = 'diff__body'
+    diff.textContent = 'a selected diff line'
+    document.body.appendChild(diff)
+    selectText(diff)
+
+    await handleMenuEdit('copy')
+    expect(nativeEdit).toHaveBeenCalledWith('copy')
+    // The old behaviour: 'TERMINAL SCROLLBACK' onto the clipboard instead.
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  // The fallback is deliberate and must survive: click a pane header, hit ⌘V,
+  // and the paste should still reach the terminal you were working in.
+  it('still falls back to the sole selected terminal when nothing is focused', async () => {
+    withOneAgent('a1')
+    const t = fakeTerm()
+    terminals.set('a1', t.term)
+
+    await handleMenuEdit('paste')
+    expect(t.paste).toHaveBeenCalledWith('CLIPBOARD')
+    expect(nativeEdit).not.toHaveBeenCalled()
+  })
+
+  it('leaves a focused terminal on the xterm path', async () => {
+    withOneAgent('a1')
+    const t = fakeTerm()
+    terminals.set('a1', t.term)
+    const pane = document.createElement('div')
+    pane.className = 'vec-pane'
+    pane.dataset.id = 'a1'
+    const host = document.createElement('div')
+    host.className = 'vec-pane__term'
+    const ta = document.createElement('textarea')
+    host.appendChild(ta)
+    pane.appendChild(host)
+    document.body.appendChild(pane)
+    ta.focus()
+
+    await handleMenuEdit('copy')
+    expect(write).toHaveBeenCalledWith('TERMINAL SCROLLBACK')
+    expect(nativeEdit).not.toHaveBeenCalled()
+  })
+
+  it('leaves a focused plain input to the input path', async () => {
+    withOneAgent('a1')
+    const t = fakeTerm()
+    terminals.set('a1', t.term)
+    const input = document.createElement('input')
+    input.value = 'rename me'
+    document.body.appendChild(input)
+    input.focus()
+    input.setSelectionRange(0, 6)
+
+    await handleMenuEdit('copy')
+    expect(write).toHaveBeenCalledWith('rename')
+    expect(nativeEdit).not.toHaveBeenCalled()
+  })
+})
+
+// jsdom does not implement isContentEditable, so the attribute fallback is what
+// keeps the tests above honest — and what covers focus landing on a child node.
+describe('isRichEditable', () => {
+  it('recognises an editable host and its descendants', () => {
+    const host = document.createElement('div')
+    host.setAttribute('contenteditable', 'true')
+    const line = document.createElement('span')
+    host.appendChild(line)
+    document.body.appendChild(host)
+    expect(isRichEditable(host)).toBe(true)
+    expect(isRichEditable(line)).toBe(true)
+  })
+
+  it('is false for ordinary elements and for an explicitly non-editable one', () => {
+    const plain = document.createElement('div')
+    const off = document.createElement('div')
+    off.setAttribute('contenteditable', 'false')
+    expect(isRichEditable(plain)).toBe(false)
+    expect(isRichEditable(off)).toBe(false)
+    expect(isRichEditable(null)).toBe(false)
   })
 })

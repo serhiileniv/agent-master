@@ -167,12 +167,33 @@ export async function pasteIntoTerminal(term: Terminal, shellId?: string): Promi
 }
 
 /**
+ * Is this a rich-text editing surface — in practice the file editor, whose
+ * CodeMirror content is a `contenteditable` div rather than a textarea?
+ *
+ * `isContentEditable` is the real answer in Chromium; jsdom doesn't implement
+ * it, so the attribute is checked too and the unit tests stay honest. `closest`
+ * covers focus landing on a descendant of the editable root.
+ */
+export function isRichEditable(el: Element | null): boolean {
+  if (!el) return false
+  if ((el as HTMLElement).isContentEditable) return true
+  return !!el.closest?.('[contenteditable="true"],[contenteditable=""]')
+}
+
+/**
  * Route a macOS Edit-menu command (⌘C/⌘V/⌘A) by focus.
  *
  * A focused terminal → xterm selection + the main-process clipboard (same path
  * as Ctrl/Cmd handling on Windows). A focused plain input (rename / search) →
  * native editing so those fields still copy/paste normally. The distinction is
  * the DOM: xterm's textarea lives inside `.vec-pane__term`; the inputs don't.
+ *
+ * Everything else editable or selectable — the file editor's contenteditable,
+ * a plain selection in the diff — goes back to Chromium via `menu.nativeEdit`.
+ * It can't be left to handle itself: the menu accelerator already swallowed the
+ * keystroke, so without this it falls through to the "no focus" branch below and
+ * the command lands on a TERMINAL — ⌘V typing your snippet onto an agent's
+ * command line, ⌘C quietly replacing the clipboard with terminal scrollback.
  */
 export async function handleMenuEdit(action: 'copy' | 'paste' | 'selectAll'): Promise<void> {
   const el = document.activeElement as HTMLElement | null
@@ -196,9 +217,23 @@ export async function handleMenuEdit(action: 'copy' | 'paste' | 'selectAll'): Pr
     return
   }
 
+  // The file editor (CodeMirror's contenteditable) — Chromium's own editing.
+  if (isRichEditable(el)) {
+    window.api.menu.nativeEdit(action)
+    return
+  }
+
   // Plain input / textarea (rename field, search box).
   const input = el as HTMLInputElement | HTMLTextAreaElement | null
   if (!input || typeof input.value !== 'string') {
+    // A plain text selection the user made on purpose — a diff hunk, a file
+    // preview, the version string in Settings, all of which opt back into
+    // `user-select: text`. Copy what they highlighted, not a terminal's
+    // scrollback. Only copy: there is nothing to paste into or select in.
+    if (action === 'copy' && (window.getSelection()?.toString() ?? '') !== '') {
+      window.api.menu.nativeEdit('copy')
+      return
+    }
     // Nothing has DOM focus (e.g. the user clicked a pane header, then hit ⌘V).
     // Route to the terminal they mean: the focused pane, or the single selected
     // one — so paste "just works" instead of silently going nowhere.
