@@ -6,6 +6,28 @@ Notable changes per release. Installers for every version are on the
 This file was reconstructed from git history at v0.1.25; entries before then are summarised rather
 than exhaustive. Entries below keep the product name they shipped under.
 
+## v0.1.33
+
+- **The file panel can now manage files, not just read them.** Create, rename, move, copy and delete
+  files and folders without leaving the app. Right-click any row for the full menu — including Copy
+  Path and Reveal in Finder — or use the New File and New Folder buttons in the panel header. Naming
+  a new file `utils/dates.ts` creates the folder on the way.
+- **Deleting goes to the Trash, and asks first.** The confirmation names what will go, says
+  explicitly when something has uncommitted git changes, and offers a "Don't ask me again" box that
+  survives a restart — except for the git-changes case, which always asks.
+- **Drag to move, ⌥-drag to copy.** Drop a row onto a folder to move it in; hovering a closed folder
+  mid-drag springs it open. Drops that can't work — onto itself, into its own subfolder — are refused
+  rather than half-attempted, and an existing file at the destination prompts before being replaced.
+  Files dragged in from Finder are copied into the folder you drop them on.
+- **⌘Z undoes a file operation** while the tree has focus, independently of the editor's own undo.
+- **Every file row now has an icon,** tinted by type — TypeScript blue, JSON green, images violet,
+  config amber — so a folder of thirty files is scannable by shape instead of by reading each name.
+  Multi-select with ⌘-click and ⇧-click, and move the selection with the arrow keys.
+- **Fixed: copy and paste landing on a terminal instead of the file editor.** ⌘V in the file editor
+  typed your clipboard onto a running agent's command line, and ⌘C over a diff hunk or a file preview
+  copied terminal scrollback instead of what you had selected. Both now act on whatever is actually
+  focused. Ctrl+V on Windows and Linux had the same hole.
+
 ## v0.1.32
 
 - **Renamed Spy Master → Agent Master.** New app identity throughout: window title, installer,
